@@ -83,7 +83,7 @@ export default function GamePage() {
     // Sample center area of the image
     const centerX = canvas.width / 2
     const centerY = canvas.height / 2
-    const sampleSize = 200
+    const sampleSize = 150
 
     const imageData = ctx.getImageData(
       centerX - sampleSize / 2,
@@ -247,8 +247,8 @@ export default function GamePage() {
           <div
           className="border-2 border-white flex items-center justify-center"
           style={{
-            width: '200px',
-            height: '200px',
+            width: '150px',
+            height: '150px',
             borderRadius: '0',
           }}
         ></div>
