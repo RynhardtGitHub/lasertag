@@ -20,7 +20,19 @@ export default function GamePage() {
   const [detectedColor, setDetectedColor] = useState<string | null>(null)
   const [lastAction, setLastAction] = useState<string>("")
 
-  const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore()
+  const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+
+  function sleep(ms: number | undefined) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /*
+  detectColor is also performing OCR
+  */
+  async function scanUser() {
+    await detectColor();
+  }
+  
 
   // Game timer
   useEffect(() => {
@@ -56,21 +68,34 @@ export default function GamePage() {
       }
     }
 
-    startCamera()
+    startCamera();
+    if (cameraActive && videoRef.current && canvasRef.current) {
+      console.log("Camera, videoRef, and canvasRef are ready. Attaching click listener.")
+      window.addEventListener('click', scanUser);
+    } else {
+      console.log("Waiting for camera, videoRef, or canvasRef to be ready. Current state: ", {
+        cameraActive,
+        videoRefCurrent: videoRef.current,
+        canvasRefCurrent: canvasRef.current
+      });
+    }
 
     return () => {
       if (videoRef.current?.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
         tracks.forEach((track) => track.stop())
       }
+      // Always remove the event listener on cleanup to prevent memory leaks
+      window.removeEventListener('click', scanUser);
+      console.log("Cleaning up camera and click listener.");
     }
-  }, [])
+  }, [cameraActive, videoRef, canvasRef])
 
-  // Color detection
-  useEffect(() => {
+  async function detectColor() {
     if (!cameraActive || !videoRef.current || !canvasRef.current) return
 
-    const interval = setInterval(async () => {
+    console.log('Clicked')
+
     const video = videoRef.current!
     const canvas = canvasRef.current!
     const ctx = canvas.getContext("2d")!
@@ -83,7 +108,7 @@ export default function GamePage() {
     // Sample center area of the image
     const centerX = canvas.width / 2
     const centerY = canvas.height / 2
-    const sampleSize = 150
+    const sampleSize = 50
 
     const imageData = ctx.getImageData(
       centerX - sampleSize / 2,
@@ -129,10 +154,12 @@ export default function GamePage() {
 
     // OCR: Detect numbers
     try {
+      console.log('OCR:')
       const {
         data: { text },
       } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "APURM0123456789" },})
 
+      console.log(`Tesseract text: ${text}`)
       const detectedNumber = text.trim()
       if (detectedNumber) {
         console.log("Detected number:", detectedNumber)
@@ -154,10 +181,7 @@ export default function GamePage() {
     } catch (error) {
       console.error("OCR error:", error)
     }
-  }, 1000) // OCR is expensive — keep interval at 1 second or more
-
-  return () => clearInterval(interval)
-  }, [cameraActive])
+  }
 
   const handleNumberAction = (detectedNumber: string) => {
     if (!currentPlayer) return
