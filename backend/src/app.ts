@@ -31,7 +31,6 @@ io.on("connection", (socket) => {
         console.log("Ack from client:", e);
     });
 
-
     // works when broadcast to all
     io.emit("noArg");
 
