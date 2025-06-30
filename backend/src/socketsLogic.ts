@@ -1,17 +1,22 @@
 import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
+import { JoinRoomResponse, Player } from "./types";
 
 interface ServerToClientEvents {
   noArg: () => void;
   basicEmit: (a: number, b: string, c: Buffer) => void;
   withAck: (d: string, callback: (e: number) => void) => void;
   sendGameState : (players:Array<string>,gameID:string,gameStatus:number)=>void;
-  sendRoom: (room:string)=>void;
+  sendRoom: (room:string,players:Array<string>)=>void;
+  updateRoom : (players:Array<Player>)=>void;
 }
 
 interface ClientToServerEvents {
   hello: () => void;
-  create: () => void;
+  create: (playerName:string) => void;
+  join : (data:{ gameID: string; playerName: string},callback:(res:JoinRoomResponse)=>void)=>void;
+  getRoomInfo : (roomID:string)=>void;
+  spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
 }
 
 interface InterServerEvents {

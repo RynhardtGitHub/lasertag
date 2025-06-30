@@ -2,7 +2,6 @@
 
 import { io, Socket } from "socket.io-client";
 
-
 export class WebSocketClient {
   private socket: Socket;
 
@@ -25,12 +24,12 @@ export class WebSocketClient {
     this.socket.on(event, callback);
   }
 
-   once(event: string, callback: (...args: any[]) => void) {
+  once(event: string, callback: (...args: any[]) => void) {
     this.socket.once(event, callback);  // <== Add this
   }
 
-  emit(event: string, data: any) {
-    this.socket.emit(event, data);
+  emit(event: string, data: any,callback?: (...args: any[]) => void) {
+    this.socket.emit(event, data, callback);
   }
 
   off(event: string, callback: (...args: any[]) => void) {
@@ -48,8 +47,6 @@ const createWebSocket = () => {
 
 
 let ws:WebSocketClient;
-
-
 
 export function getWebSocket(): WebSocketClient {
   if (ws==null) {

@@ -20,32 +20,21 @@ export default function LobbyPage() {
   const [copied, setCopied] = useState(false)
   const { players, currentPlayer, gameStatus, setGameId, addPlayer, setCurrentPlayer, setGameStatus } = useGameStore()
 
+
   useEffect(() => {
-    setGameId(gameId)
-
-    // Create current player
-    const player = {
-      id: Math.random().toString(36).substring(2),
-      name: playerName,
-      health: 100,
-      score: 0,
-      weapon: "Basic Laser",
-      isAlive: true,
-      isHost,
-    }
-
-    setCurrentPlayer(player)
-    addPlayer(player)
-
-    // Setup WebSocket
     const websocket = getWebSocket();
+    
+    websocket.emit("getRoomInfo",gameId);
 
-    // Add some mock players for demo
-    if (isHost) {
-      
+    const handleUpdateRoom = (playersFromServer : typeof players)=>{
+      useGameStore.getState().setPlayers(playersFromServer);
     }
+
+    
+    websocket.on("updateRoom", handleUpdateRoom);
 
   }, [gameId, playerName, isHost])
+
 
   const copyGameId = async () => {
     try {

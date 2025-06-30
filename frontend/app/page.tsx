@@ -10,32 +10,48 @@ import { getWebSocket } from "@/lib/websocket"
 
 export default function HomePage() {
   const [playerName, setPlayerName] = useState("")
+  const [players, setPlayers] = useState<string[]>([]);
   const [gameId, setGameId] = useState("")
   const router = useRouter()
-  const webSocket = getWebSocket()
+  const webSocket = getWebSocket();
+
   
 
   const createGame = async () => {
     if (!playerName.trim()) return
-    //TODO create game
-    webSocket.emit("create",null);
+    webSocket.emit("create",playerName);
 
     const roomID = await new Promise<string>((resolve) => {
         webSocket.once("sendRoom", (room:string) => resolve(room));
     });
-    
+
     router.push(`/lobby/${roomID}?name=${encodeURIComponent(playerName)}&host=true`)
   }
 
   const joinGame = () => {
     if (!playerName.trim() || !gameId.trim()) return
-    //TODO JOIN GAME
+
+    webSocket.emit("join",{"gameID":gameId,"playerName":playerName},(response)=>{
+        if (!response.success) {
+          alert(response.message); // or show error in UI
+          return;
+      }
+    });
+
     router.push(`/lobby/${gameId}?name=${encodeURIComponent(playerName)}`)
   }
 
   const spectateGame = () => {
-    //TODO SPECTATE GAME
     if (!gameId.trim()) return
+
+    webSocket.emit("spectate",{"gameID":gameId},(response)=>{
+        if (!response.success) {
+          alert(response.message); // or show error in UI
+          return;
+      }
+    });
+
+    
     router.push(`/spectate/${gameId}`)
   }
 
