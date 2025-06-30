@@ -131,13 +131,13 @@ export default function GamePage() {
     try {
       const {
         data: { text },
-      } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "0123456789" },})
+      } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "ABR0123456789" },})
 
       const detectedNumber = text.trim()
       if (detectedNumber) {
         console.log("Detected number:", detectedNumber)
         // handleNumberAction(detectedNumber)
-        const matchedDigits = detectedNumber.match(/\d+/g) // returns array of digit sequences
+        const matchedDigits = detectedNumber.match(/[APURM0-9]+/gi) // returns array of digit sequences
 
         if (matchedDigits && matchedDigits.length > 0) {
           const number = matchedDigits[0] // pick first sequence
