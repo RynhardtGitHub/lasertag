@@ -10,29 +10,17 @@
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
-    // Connect to backend
-    const socket = io("http://localhost:3001"); // Change if your server is hosted elsewhere
+      const socket = io("http://localhost:3000/");
 
-    // Listen for events from server
-    socket.on("noArg", () => {
-      console.log("Received noArg from server");
-    });
+      socket.on("connect", () => {
+          console.log("Connected:", socket.id);
+          socket.emit("message", "Hello Server!");
+      });
 
-    socket.on("basicEmit", (a, b, c) => {
-      console.log("Received basicEmit:", a, b, c);
-    });
-
-    socket.on("withAck", (msg, callback) => {
-      console.log("Received withAck:", msg);
-      // Respond with a number
-      callback(123);
-    });
-
-    // Send event from client to server
-    document.getElementById("sendHello").addEventListener("click", () => {
-      socket.emit("hello");
-      console.log("Sent: hello");
-    });
+      socket.on("reply", (data) => {
+          console.log("Server replied:", data);
+      });
   </script>
+
 </body>
 </html>
