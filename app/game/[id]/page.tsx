@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/store"
 import { Zap, Heart, Users, Clock } from "lucide-react"
+import Tesseract from "tesseract.js";
 
 export default function GamePage() {
   const params = useParams()
@@ -69,57 +70,110 @@ export default function GamePage() {
   useEffect(() => {
     if (!cameraActive || !videoRef.current || !canvasRef.current) return
 
-    const detectColor = () => {
-      const video = videoRef.current!
-      const canvas = canvasRef.current!
-      const ctx = canvas.getContext("2d")!
+    const interval = setInterval(async () => {
+    const video = videoRef.current!
+    const canvas = canvasRef.current!
+    const ctx = canvas.getContext("2d")!
 
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
 
-      ctx.drawImage(video, 0, 0)
+    ctx.drawImage(video, 0, 0)
 
-      // Sample center area of the image
-      const centerX = canvas.width / 2
-      const centerY = canvas.height / 2
-      const sampleSize = 50
+    // Sample center area of the image
+    const centerX = canvas.width / 2
+    const centerY = canvas.height / 2
+    const sampleSize = 200
 
-      const imageData = ctx.getImageData(centerX - sampleSize / 2, centerY - sampleSize / 2, sampleSize, sampleSize)
+    const imageData = ctx.getImageData(
+      centerX - sampleSize / 2,
+      centerY - sampleSize / 2,
+      sampleSize,
+      sampleSize
+    )
 
-      let r = 0,
-        g = 0,
-        b = 0
-      const pixels = imageData.data.length / 4
+    const ocrCanvas = document.createElement("canvas")
+    ocrCanvas.width = sampleSize
+    ocrCanvas.height = sampleSize
+    ocrCanvas.getContext("2d")!.putImageData(imageData, 0, 0)
 
-      for (let i = 0; i < imageData.data.length; i += 4) {
-        r += imageData.data[i]
-        g += imageData.data[i + 1]
-        b += imageData.data[i + 2]
-      }
+    let r = 0,
+      g = 0,
+      b = 0
+    const pixels = imageData.data.length / 4
 
-      r = Math.floor(r / pixels)
-      g = Math.floor(g / pixels)
-      b = Math.floor(b / pixels)
-
-      // Detect dominant color
-      const threshold = 50
-      if (r > g + threshold && r > b + threshold) {
-        setDetectedColor("red")
-        handleColorAction("red")
-      } else if (g > r + threshold && g > b + threshold) {
-        setDetectedColor("green")
-        handleColorAction("green")
-      } else if (b > r + threshold && b > g + threshold) {
-        setDetectedColor("blue")
-        handleColorAction("blue")
-      } else {
-        setDetectedColor(null)
-      }
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      r += imageData.data[i]
+      g += imageData.data[i + 1]
+      b += imageData.data[i + 2]
     }
 
-    const interval = setInterval(detectColor, 200)
-    return () => clearInterval(interval)
+    r = Math.floor(r / pixels)
+    g = Math.floor(g / pixels)
+    b = Math.floor(b / pixels)
+
+    // Detect dominant color
+    const threshold = 50
+    if (r > g + threshold && r > b + threshold) {
+      setDetectedColor("red")
+      handleColorAction("red")
+    } else if (g > r + threshold && g > b + threshold) {
+      setDetectedColor("green")
+      handleColorAction("green")
+    } else if (b > r + threshold && b > g + threshold) {
+      setDetectedColor("blue")
+      handleColorAction("blue")
+    } else {
+      setDetectedColor(null)
+    }
+
+    // OCR: Detect numbers
+    try {
+      const {
+        data: { text },
+      } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "0123456789" },})
+
+      const detectedNumber = text.trim()
+      if (detectedNumber) {
+        console.log("Detected number:", detectedNumber)
+        // handleNumberAction(detectedNumber)
+        const matchedDigits = detectedNumber.match(/\d+/g) // returns array of digit sequences
+
+        if (matchedDigits && matchedDigits.length > 0) {
+          const number = matchedDigits[0] // pick first sequence
+          console.log("Detected number:", number)
+
+          // Optional: only accept 1–4 digit numbers
+          if (number.length >= 1 && number.length <= 4) {
+            handleNumberAction(number)
+          }
+        } else {
+          console.log("No valid number detected.")
+        }
+      }
+    } catch (error) {
+      console.error("OCR error:", error)
+    }
+  }, 1000) // OCR is expensive — keep interval at 1 second or more
+
+  return () => clearInterval(interval)
   }, [cameraActive])
+
+  const handleNumberAction = (detectedNumber: string) => {
+    if (!currentPlayer) return
+
+    const now = Date.now()
+    const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
+
+    // Prevent spam (1 second cooldown)
+    if (now - lastActionTime < 1000) return
+
+    localStorage.setItem("lastActionTime", now.toString())
+
+    setLastAction(`${detectedNumber}`)
+
+    setTimeout(() => setLastAction(""), 2000)
+  }
 
   const handleColorAction = (color: string) => {
     if (!currentPlayer) return
@@ -187,9 +241,17 @@ export default function GamePage() {
 
         {/* Crosshair */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center">
+          {/*<div className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center">
             <div className="w-2 h-2 bg-white rounded-full" />
-          </div>
+          </div>*/}
+          <div
+          className="border-2 border-white flex items-center justify-center"
+          style={{
+            width: '200px',
+            height: '200px',
+            borderRadius: '0',
+          }}
+        ></div>
         </div>
       </div>
 
