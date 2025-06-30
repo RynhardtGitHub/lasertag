@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/store"
 import { Zap, Heart, Users, Clock } from "lucide-react"
+import Tesseract from "tesseract.js";
 
 export default function GamePage() {
   const params = useParams()
@@ -26,12 +27,10 @@ export default function GamePage() {
   }
 
   /*
-  Replace detectColor with OCR scanning
+  detectColor is also performing OCR
   */
   async function scanUser() {
-    console.log('Window clicked')
-    detectColor();
-    await sleep(1000);
+    await detectColor();
   }
   
 
@@ -69,19 +68,33 @@ export default function GamePage() {
       }
     }
 
-    startCamera()
-    window.addEventListener('click', scanUser);
+    startCamera();
+    if (cameraActive && videoRef.current && canvasRef.current) {
+      console.log("Camera, videoRef, and canvasRef are ready. Attaching click listener.")
+      window.addEventListener('click', scanUser);
+    } else {
+      console.log("Waiting for camera, videoRef, or canvasRef to be ready. Current state: ", {
+        cameraActive,
+        videoRefCurrent: videoRef.current,
+        canvasRefCurrent: canvasRef.current
+      });
+    }
 
     return () => {
       if (videoRef.current?.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
         tracks.forEach((track) => track.stop())
       }
+      // Always remove the event listener on cleanup to prevent memory leaks
+      window.removeEventListener('click', scanUser);
+      console.log("Cleaning up camera and click listener.");
     }
-  }, [])
+  }, [cameraActive, videoRef, canvasRef])
 
-  function detectColor() {
+  async function detectColor() {
     if (!cameraActive || !videoRef.current || !canvasRef.current) return
+
+    console.log('Clicked')
 
     const video = videoRef.current!
     const canvas = canvasRef.current!
@@ -97,7 +110,17 @@ export default function GamePage() {
     const centerY = canvas.height / 2
     const sampleSize = 50
 
-    const imageData = ctx.getImageData(centerX - sampleSize / 2, centerY - sampleSize / 2, sampleSize, sampleSize)
+    const imageData = ctx.getImageData(
+      centerX - sampleSize / 2,
+      centerY - sampleSize / 2,
+      sampleSize,
+      sampleSize
+    )
+
+    const ocrCanvas = document.createElement("canvas")
+    ocrCanvas.width = sampleSize
+    ocrCanvas.height = sampleSize
+    ocrCanvas.getContext("2d")!.putImageData(imageData, 0, 0)
 
     let r = 0,
       g = 0,
@@ -128,6 +151,52 @@ export default function GamePage() {
     } else {
       setDetectedColor(null)
     }
+
+    // OCR: Detect numbers
+    try {
+      console.log('OCR:')
+      const {
+        data: { text },
+      } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "APURM0123456789" },})
+
+      console.log(`Tesseract text: ${text}`)
+      const detectedNumber = text.trim()
+      if (detectedNumber) {
+        console.log("Detected number:", detectedNumber)
+        // handleNumberAction(detectedNumber)
+        const matchedDigits = detectedNumber.match(/[APURM0-9]+/gi) // returns array of digit sequences
+
+        if (matchedDigits && matchedDigits.length > 0) {
+          const number = matchedDigits[0] // pick first sequence
+          console.log("Detected number:", number)
+
+          // Optional: only accept 1–4 digit numbers
+          if (number.length >= 1 && number.length <= 4) {
+            handleNumberAction(number)
+          }
+        } else {
+          console.log("No valid number detected.")
+        }
+      }
+    } catch (error) {
+      console.error("OCR error:", error)
+    }
+  }
+
+  const handleNumberAction = (detectedNumber: string) => {
+    if (!currentPlayer) return
+
+    const now = Date.now()
+    const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
+
+    // Prevent spam (1 second cooldown)
+    if (now - lastActionTime < 1000) return
+
+    localStorage.setItem("lastActionTime", now.toString())
+
+    setLastAction(`${detectedNumber}`)
+
+    setTimeout(() => setLastAction(""), 2000)
   }
 
   const handleColorAction = (color: string) => {
@@ -196,9 +265,17 @@ export default function GamePage() {
 
         {/* Crosshair */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center">
+          {/*<div className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center">
             <div className="w-2 h-2 bg-white rounded-full" />
-          </div>
+          </div>*/}
+          <div
+          className="border-2 border-white flex items-center justify-center"
+          style={{
+            width: '150px',
+            height: '150px',
+            borderRadius: '0',
+          }}
+        ></div>
         </div>
       </div>
 
