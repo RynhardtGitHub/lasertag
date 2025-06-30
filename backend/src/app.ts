@@ -16,15 +16,6 @@ app.get('/', (req: Request, res: Response) => {
     res.send('Hello from Express with TypeScript!');
 });
 
-
-app.get('/hello', (req: Request, res: Response) => {
-    let json = {
-        "data":231
-    };
-    res.send(json)
-});
-
-
 app.get("/createLobby",(req,res)=>{
     res.send({ lobby: "created" });
 })
@@ -39,6 +30,7 @@ io.on("connection", (socket) => {
     socket.emit("withAck", "4", (e) => {
         console.log("Ack from client:", e);
     });
+
 
     // works when broadcast to all
     io.emit("noArg");
