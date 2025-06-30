@@ -5,10 +5,13 @@ interface ServerToClientEvents {
   noArg: () => void;
   basicEmit: (a: number, b: string, c: Buffer) => void;
   withAck: (d: string, callback: (e: number) => void) => void;
+  sendGameState : (players:Array<string>,gameID:string,gameStatus:number)=>void;
+  sendRoom: (room:string)=>void;
 }
 
 interface ClientToServerEvents {
   hello: () => void;
+  create: () => void;
 }
 
 interface InterServerEvents {
@@ -16,8 +19,7 @@ interface InterServerEvents {
 }
 
 interface SocketData {
-  name: string;
-  age: number;
+  data:JSON
 }
 
 
@@ -29,7 +31,7 @@ export function createNewServer(httpServer:HTTPServer){
         SocketData
     >(httpServer, {
       cors:{
-        origin:"http://localhost:5500",
+        origin:["http://localhost:5500","http://localhost:3004"],
         methods: ["GET", "POST"]
       }
     });

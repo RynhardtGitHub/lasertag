@@ -1,43 +1,61 @@
 "use client"
 
-// Mock WebSocket implementation for demonstration
-// In a real app, you'd use Socket.IO or Ably
+import { io, Socket } from "socket.io-client";
 
-export class MockWebSocket {
-  private listeners: { [key: string]: Function[] } = {}
-  private gameId: string
 
-  constructor(gameId: string) {
-    this.gameId = gameId
+export class WebSocketClient {
+  private socket: Socket;
+
+  constructor() {
+    //TODO CHANGE THE URL for server socket
+    this.socket = io("http://localhost:3001", {
+      transports: ["websocket"], // optional, can fallback to polling if you remove this
+    });
+
+    this.socket.on("connect", () => {
+      console.log(`Connected as ${this.socket.id}`);
+    });
+
+    this.socket.on("disconnect", () => {
+      console.log("Disconnected");
+    });
   }
 
-  on(event: string, callback: Function) {
-    if (!this.listeners[event]) {
-      this.listeners[event] = []
-    }
-    this.listeners[event].push(callback)
+  on(event: string, callback: (...args: any[]) => void) {
+    this.socket.on(event, callback);
+  }
+
+   once(event: string, callback: (...args: any[]) => void) {
+    this.socket.once(event, callback);  // <== Add this
   }
 
   emit(event: string, data: any) {
-    // Simulate network delay
-    setTimeout(() => {
-      if (this.listeners[event]) {
-        this.listeners[event].forEach((callback) => callback(data))
-      }
-    }, 100)
+    this.socket.emit(event, data);
   }
 
-  off(event: string, callback: Function) {
-    if (this.listeners[event]) {
-      this.listeners[event] = this.listeners[event].filter((cb) => cb !== callback)
-    }
+  off(event: string, callback: (...args: any[]) => void) {
+    this.socket.off(event, callback);
   }
 
   disconnect() {
-    this.listeners = {}
+    this.socket.disconnect();
   }
 }
 
-export const createWebSocket = (gameId: string) => {
-  return new MockWebSocket(gameId)
+const createWebSocket = () => {
+  return new WebSocketClient();
+};
+
+
+let ws:WebSocketClient;
+
+
+
+export function getWebSocket(): WebSocketClient {
+  if (ws==null) {
+    ws = createWebSocket()
+  }
+
+  return ws;
 }
+

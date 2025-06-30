@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/store"
-import { createWebSocket } from "@/lib/websocket"
+import { getWebSocket } from "@/lib/websocket"
 import { Users, Crown, Play, Copy, Check } from "lucide-react"
 
 export default function LobbyPage() {
@@ -15,11 +15,9 @@ export default function LobbyPage() {
   const router = useRouter()
   const gameId = params.id as string
   const playerName = searchParams.get("name") || "Anonymous"
-  const isHost = searchParams.get("host") === "true"
+  const isHost = searchParams.get("host") === "true";
 
   const [copied, setCopied] = useState(false)
-  const [ws, setWs] = useState<any>(null)
-
   const { players, currentPlayer, gameStatus, setGameId, addPlayer, setCurrentPlayer, setGameStatus } = useGameStore()
 
   useEffect(() => {
@@ -40,34 +38,13 @@ export default function LobbyPage() {
     addPlayer(player)
 
     // Setup WebSocket
-    const websocket = createWebSocket(gameId)
-    setWs(websocket)
+    const websocket = getWebSocket();
 
     // Add some mock players for demo
     if (isHost) {
-      setTimeout(() => {
-        addPlayer({
-          id: "bot1",
-          name: "Player 2",
-          health: 100,
-          score: 0,
-          weapon: "Basic Laser",
-          isAlive: true,
-        })
-        addPlayer({
-          id: "bot2",
-          name: "Player 3",
-          health: 100,
-          score: 0,
-          weapon: "Basic Laser",
-          isAlive: true,
-        })
-      }, 2000)
+      
     }
 
-    return () => {
-      websocket?.disconnect()
-    }
   }, [gameId, playerName, isHost])
 
   const copyGameId = async () => {
