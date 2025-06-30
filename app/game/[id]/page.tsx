@@ -131,7 +131,7 @@ export default function GamePage() {
     try {
       const {
         data: { text },
-      } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "ABR0123456789" },})
+      } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "APURM0123456789" },})
 
       const detectedNumber = text.trim()
       if (detectedNumber) {
