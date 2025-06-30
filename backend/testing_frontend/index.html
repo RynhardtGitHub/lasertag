@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Socket.IO Frontend</title>
+</head>
+<body>
+  <h1>Socket.IO Client</h1>
+  <button id="sendHello">Send Hello</button>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+      const socket = io("http://localhost:3000/");
+
+      socket.on("connect", () => {
+          console.log("Connected:", socket.id);
+          socket.emit("message", "Hello Server!");
+      });
+
+      socket.on("reply", (data) => {
+          console.log("Server replied:", data);
+      });
+  </script>
+
+</body>
+</html>
