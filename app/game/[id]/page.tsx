@@ -19,7 +19,21 @@ export default function GamePage() {
   const [detectedColor, setDetectedColor] = useState<string | null>(null)
   const [lastAction, setLastAction] = useState<string>("")
 
-  const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore()
+  const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+
+  function sleep(ms: number | undefined) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /*
+  Replace detectColor with OCR scanning
+  */
+  async function scanUser() {
+    console.log('Window clicked')
+    detectColor();
+    await sleep(1000);
+  }
+  
 
   // Game timer
   useEffect(() => {
@@ -56,6 +70,7 @@ export default function GamePage() {
     }
 
     startCamera()
+    window.addEventListener('click', scanUser);
 
     return () => {
       if (videoRef.current?.srcObject) {
@@ -65,61 +80,55 @@ export default function GamePage() {
     }
   }, [])
 
-  // Color detection
-  useEffect(() => {
+  function detectColor() {
     if (!cameraActive || !videoRef.current || !canvasRef.current) return
 
-    const detectColor = () => {
-      const video = videoRef.current!
-      const canvas = canvasRef.current!
-      const ctx = canvas.getContext("2d")!
+    const video = videoRef.current!
+    const canvas = canvasRef.current!
+    const ctx = canvas.getContext("2d")!
 
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
 
-      ctx.drawImage(video, 0, 0)
+    ctx.drawImage(video, 0, 0)
 
-      // Sample center area of the image
-      const centerX = canvas.width / 2
-      const centerY = canvas.height / 2
-      const sampleSize = 50
+    // Sample center area of the image
+    const centerX = canvas.width / 2
+    const centerY = canvas.height / 2
+    const sampleSize = 50
 
-      const imageData = ctx.getImageData(centerX - sampleSize / 2, centerY - sampleSize / 2, sampleSize, sampleSize)
+    const imageData = ctx.getImageData(centerX - sampleSize / 2, centerY - sampleSize / 2, sampleSize, sampleSize)
 
-      let r = 0,
-        g = 0,
-        b = 0
-      const pixels = imageData.data.length / 4
+    let r = 0,
+      g = 0,
+      b = 0
+    const pixels = imageData.data.length / 4
 
-      for (let i = 0; i < imageData.data.length; i += 4) {
-        r += imageData.data[i]
-        g += imageData.data[i + 1]
-        b += imageData.data[i + 2]
-      }
-
-      r = Math.floor(r / pixels)
-      g = Math.floor(g / pixels)
-      b = Math.floor(b / pixels)
-
-      // Detect dominant color
-      const threshold = 50
-      if (r > g + threshold && r > b + threshold) {
-        setDetectedColor("red")
-        handleColorAction("red")
-      } else if (g > r + threshold && g > b + threshold) {
-        setDetectedColor("green")
-        handleColorAction("green")
-      } else if (b > r + threshold && b > g + threshold) {
-        setDetectedColor("blue")
-        handleColorAction("blue")
-      } else {
-        setDetectedColor(null)
-      }
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      r += imageData.data[i]
+      g += imageData.data[i + 1]
+      b += imageData.data[i + 2]
     }
 
-    const interval = setInterval(detectColor, 200)
-    return () => clearInterval(interval)
-  }, [cameraActive])
+    r = Math.floor(r / pixels)
+    g = Math.floor(g / pixels)
+    b = Math.floor(b / pixels)
+
+    // Detect dominant color
+    const threshold = 50
+    if (r > g + threshold && r > b + threshold) {
+      setDetectedColor("red")
+      handleColorAction("red")
+    } else if (g > r + threshold && g > b + threshold) {
+      setDetectedColor("green")
+      handleColorAction("green")
+    } else if (b > r + threshold && b > g + threshold) {
+      setDetectedColor("blue")
+      handleColorAction("blue")
+    } else {
+      setDetectedColor(null)
+    }
+  }
 
   const handleColorAction = (color: string) => {
     if (!currentPlayer) return
