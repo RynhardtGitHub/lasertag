@@ -3,6 +3,7 @@ import { create } from "zustand"
 export interface Player {
   id: string
   name: string
+  shootId: string
   health: number
   score: number
   weapon: string
