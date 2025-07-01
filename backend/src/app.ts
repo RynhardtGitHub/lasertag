@@ -65,21 +65,32 @@ io.on("connection", (socket) => {
         console.log("Ack from client:", e);
     });
 
+    let numberWhitelist = '123';
+    let letterWhitelist = 'APU';
+
     socket.on("create",(playerName)=>{
         // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
 
-        let playerIdWhitelist = 'APURM0123456789';
-        let playerId = makeid(2,playerIdWhitelist);
+        // let playerIdWhitelist = 'APURM0123456789';
+        // let playerId = makeid(2,playerIdWhitelist);
+
+        /* Sus workaround to creating an id with one number and lettter */
+        let playerId = makeid(1,numberWhitelist);
+        playerId += makeid(1,letterWhitelist);
+
         while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
             // Max number of players reached
-            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            if (assignedPlayerIds.length >= Math.pow(3,3)) {
                 return {
                     success: false,
                     error: true,
                     message: 'Maximum number of players reached',
                 }
             }
-            playerId = makeid(2,playerIdWhitelist);
+            // playerId = makeid(2,playerIdWhitelist);
+            playerId = makeid(1,numberWhitelist);
+            playerId += makeid(1,letterWhitelist);
         }
 
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
@@ -128,18 +139,26 @@ io.on("connection", (socket) => {
 
         playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
 
-        let playerIdWhitelist = 'ABSK12345678';
-        let playerId = makeid(2,playerIdWhitelist);
+        // let playerIdWhitelist = 'APURM0123456789';
+        // let playerId = makeid(2,playerIdWhitelist);
+
+        /* Sus workaround to creating an id with one number and lettter */
+        let playerId = makeid(1,numberWhitelist);
+        playerId += makeid(1,letterWhitelist);
+
         while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
             // Max number of players reached
-            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            if (assignedPlayerIds.length >= Math.pow(3,3)) {
                 return {
                     success: false,
                     error: true,
                     message: 'Maximum number of players reached',
                 }
             }
-            playerId = makeid(2,playerIdWhitelist);
+            // playerId = makeid(2,playerIdWhitelist);
+            playerId = makeid(1,numberWhitelist);
+            playerId += makeid(1,letterWhitelist);
         }
 
 
