@@ -52,13 +52,6 @@ export default function LobbyPage() {
       };
   }, [gameId, playerName])
 
-  useEffect(() => {
-    canStart = players.length >= 2 && isHost && gameStatus === "waiting" 
-    console.log(players.length)
-    console.log(isHost)
-    console.log(gameStatus)
-  }, [players, isHost, gameStatus]);
-
   const copyGameId = async () => {
     try {
       await navigator.clipboard.writeText(gameId)
