@@ -69,12 +69,12 @@ export default function LobbyPage() {
   }
 
   const startGame = () => {
-    if (isHost && players.length >= 2){
+    if (isHost && players.length >= 1){
         websocket.emit("startGame", gameId);
       }
   }
 
-  const canStart = isHost && players.length >= 2;
+  const canStart = isHost && players.length >= 1;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
