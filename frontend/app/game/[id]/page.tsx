@@ -33,7 +33,6 @@ export default function GamePage() {
     await detectColor();
   }
   
-
   // Game timer
   useEffect(() => {
     const timer = setInterval(() => {
