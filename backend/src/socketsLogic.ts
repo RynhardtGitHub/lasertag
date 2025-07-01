@@ -17,6 +17,7 @@ interface ClientToServerEvents {
   join : (data:{ gameID: string; playerName: string},callback:(res:JoinRoomResponse)=>void)=>void;
   getRoomInfo : (roomID:string)=>void;
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
+  erasePlayer:(data:{playerId: string})=>void;
 }
 
 interface InterServerEvents {

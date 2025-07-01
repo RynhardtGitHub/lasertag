@@ -172,6 +172,10 @@ io.on("connection", (socket) => {
     })
 
     // Also add disconnect socket
+    // socket.on("erasePlayer", async (playerId) => {
+    //     console.log(roomsPlayers)
+    //     console.log(assignedPlayerIds)
+    // })
 });
 
 

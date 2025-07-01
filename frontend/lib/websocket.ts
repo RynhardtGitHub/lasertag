@@ -17,6 +17,7 @@ export class WebSocketClient {
 
     this.socket.on("disconnect", () => {
       console.log("Disconnected");
+      // this.socket.emit('erasePlayer',{})
     });
   }
 
