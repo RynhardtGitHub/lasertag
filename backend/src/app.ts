@@ -81,6 +81,7 @@ io.on("connection", (socket) => {
             }
             playerId = makeid(2,playerIdWhitelist);
         }
+
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         assignedPlayerIds.push(playerId);
         console.log(`Created player with id: ${playerId}`)
@@ -127,8 +128,23 @@ io.on("connection", (socket) => {
 
         playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
 
+        let playerIdWhitelist = 'ABSK12345678';
+        let playerId = makeid(2,playerIdWhitelist);
+        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
+            // Max number of players reached
+            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+                return {
+                    success: false,
+                    error: true,
+                    message: 'Maximum number of players reached',
+                }
+            }
+            playerId = makeid(2,playerIdWhitelist);
+        }
+
+
         if (!playerExists) {
-            const newPlayer = createPlayer(socket.id, data.playerName, { isHost: false, isSpectator: false });
+            const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
             roomsPlayers[data.gameID].push(newPlayer);
         }
 
@@ -168,7 +184,7 @@ io.on("connection", (socket) => {
         }
 
         if (!playerExists) {
-            const newSpec = createPlayer(socket.id,spectatorName, { isHost: false, isSpectator: true });
+            const newSpec = createPlayer(socket.id,spectatorName,"", { isHost: false, isSpectator: true });
             roomsPlayers[data.gameID].push(newSpec);
         }
 
