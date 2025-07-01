@@ -8,7 +8,7 @@ export class WebSocketClient {
 
   constructor() {
     //TODO CHANGE THE URL for server socket
-    this.socket = io("http://localhost:3001", {
+    this.socket = io("https://lasertag.onrender.com/", {
       transports: ["websocket"], // optional, can fallback to polling if you remove this
     });
 
