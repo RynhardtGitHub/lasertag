@@ -150,7 +150,8 @@ io.on("connection", (socket) => {
         if (!roomsPlayers[gameID]) {
             return;
         }
-        socket.to(gameID).emit("readyUp", gameID);
+        
+        io.to(gameID).emit("readyUp", gameID);
     })
 });
 

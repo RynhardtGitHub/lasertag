@@ -51,7 +51,7 @@ export function createNewServer(httpServer:HTTPServer){
         SocketData
     >(httpServer, {
       cors:{
-        origin:["http://localhost:5500","http://localhost:3004"],
+        origin:["http://localhost:5500","http://localhost:3000"],
         methods: ["GET", "POST"]
       }
     });
