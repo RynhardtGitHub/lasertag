@@ -17,7 +17,7 @@ export default function LobbyPage() {
   const playerName = searchParams.get("name") || "Anonymous"
   const websocket = getWebSocket();
 
-
+  const [shootId, setShootId] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [copied, setCopied] = useState(false)
   const { players, currentPlayer, gameStatus, setGameId, addPlayer, setCurrentPlayer, setGameStatus } = useGameStore()
@@ -36,6 +36,7 @@ export default function LobbyPage() {
             setIsHost(player.isHost);
             setCurrentPlayer(player);
             setGameId(gameId);
+            setShootId(player.shootId);
           }
         }
       }
@@ -74,6 +75,10 @@ export default function LobbyPage() {
         websocket.emit("startGame", gameId);
       }
   }
+
+  useEffect(() => {
+    websocket.emit('getRoomInfo',gameId);
+  }, [players]);
 
   const canStart = isHost && players.length >= 1;
 
@@ -125,14 +130,15 @@ export default function LobbyPage() {
             <div className="space-y-2">
               {players.map((player) => (
                 <div key={player.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    {player.isHost && <Crown className="w-4 h-4 text-yellow-400" />}
+                  <div className="flex items-center gap-2 w-full">
+                    {player.isHost && <Crown className="min-w-4 min-h-4 text-yellow-400" />}
                     <span className="text-white font-medium">{player.name}</span>
                     {player.id === currentPlayer?.id && (
                       <Badge variant="secondary" className="text-xs">
                         You
                       </Badge>
                     )}
+                    <span className="text-white font-bold w-full text-center">Pick up tag: {(player.shootId)}</span>
                   </div>
                   <Badge variant="outline" className="text-green-400 border-green-400">
                     Ready

@@ -67,21 +67,32 @@ io.on("connection", (socket) => {
         console.log("Ack from client:", e);
     });
 
+    let numberWhitelist = '123';
+    let letterWhitelist = 'APU';
+
     socket.on("create",(playerName)=>{
         // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
 
-        let playerIdWhitelist = 'APURM0123456789';
-        let playerId = makeid(2,playerIdWhitelist);
+        // let playerIdWhitelist = 'APURM0123456789';
+        // let playerId = makeid(2,playerIdWhitelist);
+
+        /* Sus workaround to creating an id with one number and lettter */
+        let playerId = makeid(1,numberWhitelist);
+        playerId += makeid(1,letterWhitelist);
+
         while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
             // Max number of players reached
-            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            if (assignedPlayerIds.length >= Math.pow(3,2)) {
                 return {
                     success: false,
                     error: true,
                     message: 'Maximum number of players reached',
                 }
             }
-            playerId = makeid(2,playerIdWhitelist);
+            // playerId = makeid(2,playerIdWhitelist);
+            playerId = makeid(1,numberWhitelist);
+            playerId += makeid(1,letterWhitelist);
         }
 
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
@@ -95,7 +106,7 @@ io.on("connection", (socket) => {
         socket.emit("sendRoom", roomID,[]);
     })
 
-    socket.on("getRoomInfo",(roomID)=>{
+    socket.on("getRoomInfo",(roomID, callback)=>{
         // Assuming that initRoom is only called after rendering the lobby page
         if (roomID==null){
             return;
@@ -106,6 +117,10 @@ io.on("connection", (socket) => {
         }
 
         const activePlayers= roomsPlayers[roomID].filter((p) => !p.isSpectator)
+        
+        if (callback) {
+            callback({ success: true, activePlayers }); // ✅ only call if it exists
+        }
 
         io.to(roomID).emit("updateRoom", activePlayers)
     })
@@ -130,18 +145,26 @@ io.on("connection", (socket) => {
 
         playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
 
-        let playerIdWhitelist = 'ABSK12345678';
-        let playerId = makeid(2,playerIdWhitelist);
+        // let playerIdWhitelist = 'APURM0123456789';
+        // let playerId = makeid(2,playerIdWhitelist);
+
+        /* Sus workaround to creating an id with one number and lettter */
+        let playerId = makeid(1,numberWhitelist);
+        playerId += makeid(1,letterWhitelist);
+
         while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
             // Max number of players reached
-            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            if (assignedPlayerIds.length >= Math.pow(3,2)) {
                 return {
                     success: false,
                     error: true,
                     message: 'Maximum number of players reached',
                 }
             }
-            playerId = makeid(2,playerIdWhitelist);
+            // playerId = makeid(2,playerIdWhitelist);
+            playerId = makeid(1,numberWhitelist);
+            playerId += makeid(1,letterWhitelist);
         }
 
 
@@ -206,6 +229,17 @@ io.on("connection", (socket) => {
     socket.on("triggerEvent",(data)=>{
         if (data.eventType<0){
             return;
+        }
+        switch (data.eventType) {
+            case 0: // shoot event
+                console.log("shoot him")
+                break;
+
+            case 1: // heal event
+                console.log("heal")
+        
+            default:
+                break;
         }
 
         if (data.eventType==0){
