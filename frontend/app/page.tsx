@@ -6,25 +6,52 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Zap, Users, Eye } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { getWebSocket } from "@/lib/websocket"
 
 export default function HomePage() {
   const [playerName, setPlayerName] = useState("")
+  const [players, setPlayers] = useState<string[]>([]);
   const [gameId, setGameId] = useState("")
   const router = useRouter()
+  const webSocket = getWebSocket();
 
-  const createGame = () => {
+  
+
+  const createGame = async () => {
     if (!playerName.trim()) return
-    const newGameId = Math.random().toString(36).substring(2, 8).toUpperCase()
-    router.push(`/lobby/${newGameId}?name=${encodeURIComponent(playerName)}&host=true`)
+    webSocket.emit("create",playerName);
+
+    const roomID = await new Promise<string>((resolve) => {
+        webSocket.once("sendRoom", (room:string) => resolve(room));
+    });
+
+    router.push(`/lobby/${roomID}?name=${encodeURIComponent(playerName)}&host=true`)
   }
 
   const joinGame = () => {
     if (!playerName.trim() || !gameId.trim()) return
+
+    webSocket.emit("join",{"gameID":gameId,"playerName":playerName},(response)=>{
+        if (!response.success) {
+          alert(response.message); // or show error in UI
+          return;
+      }
+    });
+
     router.push(`/lobby/${gameId}?name=${encodeURIComponent(playerName)}`)
   }
 
   const spectateGame = () => {
     if (!gameId.trim()) return
+
+    webSocket.emit("spectate",{"gameID":gameId},(response)=>{
+        if (!response.success) {
+          alert(response.message); // or show error in UI
+          return;
+      }
+    });
+
+    
     router.push(`/spectate/${gameId}`)
   }
 

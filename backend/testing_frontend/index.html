@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Socket.IO Frontend</title>
+</head>
+<body>
+  <h1>Socket.IO Client</h1>
+  <button id="sendHello">Send Hello</button>
+  <button id="createRoom">Create room</button>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+      const socket = io("http://localhost:3001/");
+
+
+      socket.on("connect", () => {
+          console.log("Connected:", socket.id);
+      });
+
+      document.getElementById("sendHello").addEventListener("click",()=>{
+          socket.emit("hello");
+      })
+      let i = 0;
+
+      document.getElementById("createRoom").addEventListener("click",()=>{
+          socket.emit("create","room"+i);
+          i+=1;
+      })
+      
+  </script>
+
+</body>
+</html>

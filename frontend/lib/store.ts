@@ -25,6 +25,7 @@ interface GameStore extends GameState {
   addPlayer: (player: Player) => void
   removePlayer: (playerId: string) => void
   updatePlayer: (playerId: string, updates: Partial<Player>) => void
+  setPlayers: (newPlayers: Player[]) => void
   setCurrentPlayer: (player: Player) => void
   setGameStatus: (status: GameState["gameStatus"]) => void
   setGameTime: (time: number) => void
@@ -57,6 +58,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set((state) => ({
       players: state.players.filter((p) => p.id !== playerId),
     })),
+
+  setPlayers:(newPlayers) => set({ players: newPlayers }),
 
   updatePlayer: (playerId, updates) =>
     set((state) => ({
