@@ -10,13 +10,11 @@ import { getWebSocket } from "@/lib/websocket"
 
 export default function HomePage() {
   const [playerName, setPlayerName] = useState("")
-  const [players, setPlayers] = useState<string[]>([]);
   const [gameId, setGameId] = useState("")
   const router = useRouter()
   const webSocket = getWebSocket();
 
   
-
   const createGame = async () => {
     if (!playerName.trim()) return
     webSocket.emit("create",playerName);
