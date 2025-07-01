@@ -15,7 +15,7 @@ export default function GamePage() {
   const params = useParams()
   const router = useRouter()
   const gameId = params.id as string
-  const webSocket = getWebSocket();   
+  const webSocket = getWebSocket(); 
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -36,21 +36,10 @@ export default function GamePage() {
     await detectColor();
   }
   
-  // Game timer
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setGameTime(Math.max(0, gameTime - 1))
-    }, 1000)
-
-    if (gameTime === 0) {
-      router.push(`/results/${gameId}`)
-    }
-
-    return () => clearInterval(timer)
-  }, [gameTime, gameId, router, setGameTime])
-
   // Camera setup
   useEffect(() => {
+    webSocket.emit("readyInGame",{gameID:gameId,playerID:webSocket.getId()})
+
     const startCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -94,6 +83,20 @@ export default function GamePage() {
       console.log("Cleaning up camera and click listener.");
     }
   }, [cameraActive, videoRef, canvasRef])
+
+  // Game timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setGameTime(Math.max(0, gameTime - 1))
+    }, 1000)
+
+    if (gameTime === 0) {
+      router.push(`/results/${gameId}`)
+    }
+
+    return () => clearInterval(timer)
+  }, [gameTime, gameId, router, setGameTime])
+
 
   useEffect(() => {
     const handleUpdateRoom = (playersFromServer : typeof players)=>{
@@ -269,6 +272,11 @@ export default function GamePage() {
     return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>
   }
 
+
+  function handleGameEnd(){
+    router.push(`/results/${gameId}`)
+  }
+
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       {/* Camera View */}
@@ -389,11 +397,11 @@ export default function GamePage() {
         </div>
 
         {/* Exit Button */}
-        <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-          <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
+        {/* <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
+          <Button onClick={handleGameEnd} variant="destructive" className="w-full">
             End Game
           </Button>
-        </div>
+        </div> */}
       </div>
     </div>
   )

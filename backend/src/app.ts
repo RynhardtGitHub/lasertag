@@ -12,6 +12,8 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
+let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
+
 let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
@@ -206,6 +208,13 @@ io.on("connection", (socket) => {
             return;
         }
 
+        if (data.eventType==0){
+            //SHOOT
+        }else if (data.eventType==1){
+            //HEAL
+        }else{
+            console.log("INVALID EVENT");
+        }
     })
 
     socket.on("startGame", (gameID)=>{
@@ -213,6 +222,28 @@ io.on("connection", (socket) => {
             return;
         }
         io.to(gameID).emit("readyUp", gameID);
+    })
+
+    socket.on("readyInGame",(data)=>{
+        if (!readyPlayers[data.gameID]) {
+            readyPlayers[data.gameID] = [];
+        }
+
+        // let playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
+
+        if (!readyPlayers[data.gameID].includes(data.playerID)){
+            readyPlayers[data.gameID].push(data.playerID)
+        }
+
+
+        const allPlayers = roomsPlayers[data.gameID] ?? [];
+        const allReady = allPlayers.every(p=>readyPlayers[data.gameID].includes(p.id));
+
+        if (allReady){
+            console.log("All ready");
+            console.log(readyPlayers)
+            io.to(data.gameID).emit("beginStartOfGame");
+        }
     })
 
     // Also add disconnect socket

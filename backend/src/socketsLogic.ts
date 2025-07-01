@@ -15,6 +15,8 @@ interface ServerToClientEvents {
 
   //start game logic
   readyUp: (gameID:string)=>void;
+  beginStartOfGame: ()=>void;
+
 }
 
 
@@ -26,12 +28,14 @@ interface ClientToServerEvents {
   getRoomInfo : (roomID:string)=>void;
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
 
-  //start game logic
+  //start/end game logic
   startGame: (gameID:string)=>void;
-  startGameMessageRecievied: (gameID:string,playerID:string)=>void;
+  readyInGame: (data:{ gameID: string; playerID: string})=>void;
+  endGame : (gameID:string)=>void;
 
   //game logic
   triggerEvent:(data:{gameID:string,eventType:number,eventData:JSON})=>void
+
   //disconnect
   erasePlayer:(data:{playerId: string})=>void;
 }
