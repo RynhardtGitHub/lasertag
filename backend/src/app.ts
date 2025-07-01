@@ -81,7 +81,7 @@ io.on("connection", (socket) => {
             }
             playerId = makeid(2,playerIdWhitelist);
         }
-        let newPlayer = createPlayer(playerId,playerName,{isHost:true,isSpectator:false});
+        let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         assignedPlayerIds.push(playerId);
         console.log(`Created player with id: ${playerId}`)
 

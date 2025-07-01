@@ -58,7 +58,6 @@ export default function LobbyPage() {
       };
   }, [gameId, playerName])
 
-
   const copyGameId = async () => {
     try {
       await navigator.clipboard.writeText(gameId)

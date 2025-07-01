@@ -15,11 +15,13 @@ export function makeid(length:number, whitelist:string|null=null) {
 export function createPlayer(
   id: string,
   name: string,
+  shootId: string,
   options?: Partial<Omit<Player, 'id' | 'name'>>
 ): Player {
   return {
     id,
     name,
+    shootId: shootId,
     health: 100,
     score: 0,
     weapon: "Basic Laser",
