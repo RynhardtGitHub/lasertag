@@ -29,7 +29,6 @@ function getRooms(){
 }
 
 
-
 app.get('/', (req: Request, res: Response) => {
     res.send('Hello from Express with TypeScript!');
 });

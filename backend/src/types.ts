@@ -15,4 +15,3 @@ export interface Player {
   isSpectator?: boolean
 }
 
-

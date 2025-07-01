@@ -15,8 +15,8 @@ export default function LobbyPage() {
   const router = useRouter()
   const gameId = params.id as string
   const playerName = searchParams.get("name") || "Anonymous"
-  const isHost = searchParams.get("host") === "true";
 
+  const [isHost, setIsHost] = useState(false);
   const [copied, setCopied] = useState(false)
   const { players, currentPlayer, gameStatus, setGameId, addPlayer, setCurrentPlayer, setGameStatus } = useGameStore()
 
@@ -28,12 +28,23 @@ export default function LobbyPage() {
 
     const handleUpdateRoom = (playersFromServer : typeof players)=>{
       useGameStore.getState().setPlayers(playersFromServer);
+
+      for (const player of playersFromServer) {
+        if (player.id === websocket.getId()) {
+          if (player.isHost!= undefined) {
+            console.log("Player is host:", player.isHost);
+            setIsHost(player.isHost);
+          }
+        }
+      }
     }
 
-    
     websocket.on("updateRoom", handleUpdateRoom);
 
-  }, [gameId, playerName, isHost])
+     return () => {
+        websocket.off("updateRoom", handleUpdateRoom);
+      };
+  }, [gameId, playerName])
 
 
   const copyGameId = async () => {
@@ -47,14 +58,14 @@ export default function LobbyPage() {
   }
 
   const startGame = () => {
-    if (players.length >= 2) {
-      // Reduced for demo
-      setGameStatus("starting")
-      setTimeout(() => {
-        router.push(`/game/${gameId}`)
-      }, 3000)
+    if (isHost && players.length >= 2){
+      router.push(`/game/${gameId}`)
+
     }
-  }
+      // setTimeout(() => {
+      //   router.push(`/game/${gameId}`)
+      // }, 3000)
+    }
 
   const canStart = players.length >= 2 && isHost && gameStatus === "waiting"
 

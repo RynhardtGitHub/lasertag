@@ -4,6 +4,7 @@ import { io, Socket } from "socket.io-client";
 
 export class WebSocketClient {
   private socket: Socket;
+  private id: string;
 
   constructor() {
     //TODO CHANGE THE URL for server socket
@@ -11,13 +12,20 @@ export class WebSocketClient {
       transports: ["websocket"], // optional, can fallback to polling if you remove this
     });
 
+
     this.socket.on("connect", () => {
       console.log(`Connected as ${this.socket.id}`);
+      this.id = this.socket.id || "";
+
     });
 
     this.socket.on("disconnect", () => {
       console.log("Disconnected");
     });
+  }
+
+  getId() {
+    return this.id;
   }
 
   on(event: string, callback: (...args: any[]) => void) {

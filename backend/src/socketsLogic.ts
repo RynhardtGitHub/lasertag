@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
 import { JoinRoomResponse, Player } from "./types";
 
+
 interface ServerToClientEvents {
   noArg: () => void;
   basicEmit: (a: number, b: string, c: Buffer) => void;
@@ -11,6 +12,7 @@ interface ServerToClientEvents {
   updateRoom : (players:Array<Player>)=>void;
 }
 
+
 interface ClientToServerEvents {
   hello: () => void;
   create: (playerName:string) => void;
@@ -19,9 +21,11 @@ interface ClientToServerEvents {
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
 }
 
+
 interface InterServerEvents {
   ping: () => void;
 }
+
 
 interface SocketData {
   data:JSON
