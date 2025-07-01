@@ -81,7 +81,7 @@ io.on("connection", (socket) => {
         while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
             // Max number of players reached
             // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
-            if (assignedPlayerIds.length >= Math.pow(3,3)) {
+            if (assignedPlayerIds.length >= Math.pow(3,2)) {
                 return {
                     success: false,
                     error: true,
@@ -153,7 +153,7 @@ io.on("connection", (socket) => {
         while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
             // Max number of players reached
             // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
-            if (assignedPlayerIds.length >= Math.pow(3,3)) {
+            if (assignedPlayerIds.length >= Math.pow(3,2)) {
                 return {
                     success: false,
                     error: true,
