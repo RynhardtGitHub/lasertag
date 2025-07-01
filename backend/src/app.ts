@@ -12,6 +12,7 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
+let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
 app.use(express.json());
@@ -51,10 +52,27 @@ io.on("connection", (socket) => {
     });
 
     socket.on("create",(playerName)=>{
+        // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
+
+        let playerIdWhitelist = 'ABSK12345678';
+        let playerId = makeid(2,playerIdWhitelist);
+        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
+            // Max number of players reached
+            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+                return {
+                    success: false,
+                    error: true,
+                    message: 'Maximum number of players reached',
+                }
+            }
+            playerId = makeid(2,playerIdWhitelist);
+        }
+        let newPlayer = createPlayer(playerId,playerName,{isHost:true,isSpectator:false});
+        assignedPlayerIds.push(playerId);
+        console.log(`Created player with id: ${playerId}`)
+
         const roomID = makeid(6); 
         socket.join(roomID)
-
-        let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
         roomsPlayers[roomID]=[newPlayer];
 
         socket.emit("sendRoom", roomID,[]);
@@ -153,6 +171,12 @@ io.on("connection", (socket) => {
         
         io.to(gameID).emit("readyUp", gameID);
     })
+
+    // Also add disconnect socket
+    // socket.on("erasePlayer", async (playerId) => {
+    //     console.log(roomsPlayers)
+    //     console.log(assignedPlayerIds)
+    // })
 });
 
 

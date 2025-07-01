@@ -30,6 +30,7 @@ interface ClientToServerEvents {
   startGame: (gameID:string)=>void;
   startGameMessageRecievied: (gameID:string,playerID:string)=>void;
 
+  erasePlayer:(data:{playerId: string})=>void;
 }
 
 
