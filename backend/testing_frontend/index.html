@@ -19,7 +19,7 @@
       });
 
       document.getElementById("sendHello").addEventListener("click",()=>{
-          socket.emit("hello");
+          socket.emit("triggerEvent",0,null);
       })
       let i = 0;
 

@@ -16,3 +16,8 @@ export interface Player {
   isSpectator?: boolean
 }
 
+export type GameEventData = {
+  shooterId: string;
+  targetId?: string;
+  shootId?: string;
+};

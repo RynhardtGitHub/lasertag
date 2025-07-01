@@ -6,20 +6,21 @@
   import { Card, CardContent } from "@/components/ui/card"
   import { Badge } from "@/components/ui/badge"
   import { useGameStore } from "@/lib/store"
-  import { Zap, Heart, Users, Clock } from "lucide-react"
+  import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
   import Tesseract from "tesseract.js";
   import { getWebSocket } from "@/lib/websocket"
 
   export default function GamePage() {
-    const websocket = getWebSocket();
     const params = useParams()
     const router = useRouter()
     const gameId = params.id as string
-    const webSocket = getWebSocket();   
+    const webSocket = getWebSocket();  
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [cameraActive, setCameraActive] = useState(false)
+    const [roomPlayers, setRoomPlayers] = useState<typeof players>([]);
+
     const [detectedColor, setDetectedColor] = useState<string | null>(null)
     const [lastAction, setLastAction] = useState<string>("")
 
@@ -34,7 +35,22 @@
     */
     async function scanUser() {
       await detectColor();
-    }
+    } 
+
+    useEffect(() => {
+      webSocket.emit("getRoomInfo", gameId);
+
+      const handleUpdateRoom = (playersFromServer: typeof players) => {
+        useGameStore.getState().setPlayers(playersFromServer);
+        setRoomPlayers(playersFromServer);
+      };
+
+      webSocket.on("updateRoom", handleUpdateRoom);
+
+      return () => {
+        webSocket.off("updateRoom", handleUpdateRoom); // clean up listener
+      };
+    }, [webSocket, gameId]);
     
     // Game timer
     useEffect(() => {
@@ -100,7 +116,7 @@
         useGameStore.getState().setPlayers(playersFromServer);
       }
 
-      websocket.on("updateRoom", handleUpdateRoom);
+      webSocket.on("updateRoom", handleUpdateRoom);
     },[]);
 
     async function detectColor() {
@@ -172,6 +188,8 @@
         } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "ABPURM0123456789" },})
 
         console.log(`Tesseract text: ${text}`)
+
+
         const detectedNumber = text.trim()
         if (detectedNumber) {
           // console.log("Detected number:", detectedNumber)
@@ -198,6 +216,8 @@
     const handleNumberAction = async (detectedNumber: string) => {
       if (!currentPlayer) return
 
+      console.log("Handling number action for:", detectedNumber)
+
       const now = Date.now()
       const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
 
@@ -207,33 +227,29 @@
       localStorage.setItem("lastActionTime", now.toString())
 
       setLastAction(`${detectedNumber}`)
+      
       try {
-        const response = await new Promise<{ success?: boolean, activePlayers?: any[], error?: string }>((resolve, reject) => {
-          websocket.emit("getRoomInfo", gameId, (res) => {
-            if (res?.error) return reject(res.error);
-            resolve(res);
-          });
-        });
-
-        console.log("Room data:", response.activePlayers);
-
-        const roomPlayers = response.activePlayers || [];
-
-        // Look for a player with matching shootId
         const matchedPlayer = roomPlayers.find(
           (player) => player.shootId.toLowerCase() === detectedNumber.toLowerCase()
         );
 
+        console.log("Matched player:", matchedPlayer)
+        console.log(roomPlayers)
+
         if (matchedPlayer) {
           console.log("Target acquired:", matchedPlayer.name);
 
-          websocket.emit("triggerEvent", {
+          webSocket.emit("triggerEvent", {
             gameID: `${gameId}`,
             eventType: 0,
             eventData: {
-
+              shooterId: currentPlayer.id,
+              targetId: matchedPlayer.id,
+              shootId: detectedNumber,
             }}
           );
+
+          console.log("Shoot event triggered for", matchedPlayer.name);
 
           setLastAction(`Shot ${matchedPlayer.name}!`);
         } else {
@@ -428,11 +444,11 @@
           </div>
 
           {/* Exit Button */}
-          <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
+          {/* <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
             <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
               End Game
             </Button>
-          </div>
+          </div> */}
         </div>
       </div>
     )

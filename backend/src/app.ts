@@ -209,9 +209,32 @@ io.on("connection", (socket) => {
         }
 
         if (data.eventType==0){
-            //SHOOT
+            roomsPlayers[data.gameID].forEach((player) => {
+                if (data.eventData.targetId === undefined)
+
+                if (player.id === data.eventData.targetId) {
+                    player.health -= 10; // Example damage
+                    
+                    /**
+                     * 
+                        shooterId: currentPlayer.id,
+                        targetId: matchedPlayer.id,
+                        shootId: detectedNumber,
+                     */
+                    console.log(`Player ${player.name} shot! Health: ${player.health}`);
+                }
+            });
+
+             let object = {
+                players: roomsPlayers[data.gameID],
+                eventType: data.eventType
+            };
+
+            io.to(data.gameID).emit("sendGameState", {gameID: data.gameID, gameData: object});
+            console.log("SHOOT EVENT");
+
         }else if (data.eventType==1){
-            //HEAL
+            console.log("HEAL EVENT"); 
         }else{
             console.log("INVALID EVENT");
         }
@@ -222,6 +245,8 @@ io.on("connection", (socket) => {
             return;
         }
         io.to(gameID).emit("readyUp", gameID);
+
+        console.log(roomsPlayers[gameID]);
     })
 
     socket.on("readyInGame",(data)=>{

@@ -1,13 +1,12 @@
 import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
-import { JoinRoomResponse, Player } from "./types";
+import { JoinRoomResponse, Player, GameEventData } from "./types";
 
 
 interface ServerToClientEvents {
   noArg: () => void;
   basicEmit: (a: number, b: string, c: Buffer) => void;
   withAck: (d: string, callback: (e: number) => void) => void;
-  sendGameState : (players:Array<string>,gameID:string,gameStatus:number)=>void;
 
   //room logic
   sendRoom: (room:string,players:Array<string>)=>void;
@@ -16,6 +15,9 @@ interface ServerToClientEvents {
   //start game logic
   readyUp: (gameID:string)=>void;
   beginStartOfGame: ()=>void;
+
+  //game logic
+  sendGameState : (data:{gameID:string,gameData:object})=>void;
 
 }
 
@@ -34,7 +36,7 @@ interface ClientToServerEvents {
   endGame : (gameID:string)=>void;
 
   //game logic
-  triggerEvent:(data:{gameID:string,eventType:number,eventData:JSON})=>void
+  triggerEvent:(data:{gameID:string,eventType:number,eventData:GameEventData})=>void
 
   //disconnect
   erasePlayer:(data:{playerId: string})=>void;
