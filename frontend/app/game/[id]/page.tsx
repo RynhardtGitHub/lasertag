@@ -15,6 +15,7 @@ export default function GamePage() {
   const params = useParams()
   const router = useRouter()
   const gameId = params.id as string
+  const webSocket = getWebSocket();   
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -70,6 +71,7 @@ export default function GamePage() {
     }
 
     startCamera();
+
     if (cameraActive && videoRef.current && canvasRef.current) {
       console.log("Camera, videoRef, and canvasRef are ready. Attaching click listener.")
       window.addEventListener('mousedown', scanUser);
@@ -86,11 +88,20 @@ export default function GamePage() {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
         tracks.forEach((track) => track.stop())
       }
+      
       // Always remove the event listener on cleanup to prevent memory leaks
       window.removeEventListener('mousedown', scanUser);
       console.log("Cleaning up camera and click listener.");
     }
   }, [cameraActive, videoRef, canvasRef])
+
+  useEffect(() => {
+    const handleUpdateRoom = (playersFromServer : typeof players)=>{
+      useGameStore.getState().setPlayers(playersFromServer);
+    }
+
+    websocket.on("updateRoom", handleUpdateRoom);
+  },[]);
 
   async function detectColor() {
     if (!cameraActive || !videoRef.current || !canvasRef.current) return

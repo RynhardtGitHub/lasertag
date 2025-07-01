@@ -194,6 +194,20 @@ io.on("connection", (socket) => {
         // io.to(data.gameID).emit("updateRoom", roomsPlayers[data.gameID])
     })
 
+
+    /**
+     * EVENTTYPES
+     * 0 => shoot
+     * 1 => heal
+     * 2 => ...
+     */
+    socket.on("triggerEvent",(data)=>{
+        if (data.eventType<0){
+            return;
+        }
+
+    })
+
     socket.on("startGame", (gameID)=>{
         if (!roomsPlayers[gameID]) {
             return;

@@ -30,6 +30,9 @@ interface ClientToServerEvents {
   startGame: (gameID:string)=>void;
   startGameMessageRecievied: (gameID:string,playerID:string)=>void;
 
+  //game logic
+  triggerEvent:(data:{gameID:string,eventType:number,eventData:JSON})=>void
+  //disconnect
   erasePlayer:(data:{playerId: string})=>void;
 }
 

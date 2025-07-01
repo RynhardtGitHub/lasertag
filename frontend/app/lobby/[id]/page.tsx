@@ -39,7 +39,6 @@ export default function LobbyPage() {
           }
         }
       }
-      
     }
 
     const readyUp = (gameId: string) => {
