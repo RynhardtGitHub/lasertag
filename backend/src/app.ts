@@ -68,7 +68,7 @@ io.on("connection", (socket) => {
     socket.on("create",(playerName)=>{
         // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
 
-        let playerIdWhitelist = 'ABSK12345678';
+        let playerIdWhitelist = 'APURM0123456789';
         let playerId = makeid(2,playerIdWhitelist);
         while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
             // Max number of players reached
