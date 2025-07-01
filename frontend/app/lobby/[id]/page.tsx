@@ -21,7 +21,12 @@ export default function LobbyPage() {
   const [isHost, setIsHost] = useState(false);
   const [copied, setCopied] = useState(false)
   const { players, currentPlayer, gameStatus, setGameId, addPlayer, setCurrentPlayer, setGameStatus } = useGameStore()
-  let canStart = false;
+
+
+  useEffect(() => {
+    const hostParam = searchParams.get("host")
+    setIsHost(hostParam === "true")
+  }, [searchParams])
 
   useEffect(() => {
     websocket.emit("getRoomInfo",gameId);
@@ -29,14 +34,6 @@ export default function LobbyPage() {
     const handleUpdateRoom = (playersFromServer : typeof players)=>{
       useGameStore.getState().setPlayers(playersFromServer);
 
-      for (const player of playersFromServer) {
-        if (player.id === websocket.getId()) {
-          if (player.isHost!= undefined) {
-            console.log("Player is host:", player.isHost);
-            setIsHost(player.isHost);
-          }
-        }
-      }
     }
 
     const readyUp = (gameId: string) => {
@@ -47,7 +44,6 @@ export default function LobbyPage() {
     }
 
     websocket.on("readyUp", readyUp);
-
     websocket.on("updateRoom", handleUpdateRoom);
 
      return () => {
@@ -75,9 +71,11 @@ export default function LobbyPage() {
 
   const startGame = () => {
     if (isHost && players.length >= 2){
-      websocket.emit("startGame", gameId);
+        websocket.emit("startGame", gameId);
       }
-    }
+  }
+
+  const canStart = isHost && players.length >= 2;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">

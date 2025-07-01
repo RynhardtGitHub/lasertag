@@ -43,6 +43,9 @@ app.get("/getRooms",(req,res)=>{
     res.json(roomsPlayers);
 })
 
+app.get("/version",(req,res)=>{
+    res.json({version: "0.1.0"});
+})
 
 io.on("connection", (socket) => {
     socket.emit("noArg");
@@ -168,7 +171,7 @@ io.on("connection", (socket) => {
         if (!roomsPlayers[gameID]) {
             return;
         }
-        socket.to(gameID).emit("readyUp", gameID);
+        io.to(gameID).emit("readyUp", gameID);
     })
 
     // Also add disconnect socket
