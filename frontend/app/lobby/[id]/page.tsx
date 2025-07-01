@@ -47,7 +47,6 @@ export default function LobbyPage() {
     }
 
     websocket.on("readyUp", readyUp);
-
     websocket.on("updateRoom", handleUpdateRoom);
 
      return () => {
@@ -69,11 +68,11 @@ export default function LobbyPage() {
 
   const startGame = () => {
     if (isHost && players.length >= 2){
-      websocket.emit("startGame", gameId);
+        websocket.emit("startGame", gameId);
       }
-    }
+  }
 
-  const canStart = players.length >= 2 && isHost && gameStatus === "waiting"
+  const canStart = isHost && players.length >= 2;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
