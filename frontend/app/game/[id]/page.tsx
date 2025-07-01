@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/store"
 import { Zap, Heart, Users, Clock } from "lucide-react"
 import Tesseract from "tesseract.js";
+import { getWebSocket } from "@/lib/websocket"
 
 export default function GamePage() {
+  const websocket = getWebSocket();
   const params = useParams()
   const router = useRouter()
   const gameId = params.id as string
@@ -195,6 +197,7 @@ export default function GamePage() {
     localStorage.setItem("lastActionTime", now.toString())
 
     setLastAction(`${detectedNumber}`)
+    websocket.emit('shootPlayer', detectedNumber);
 
     setTimeout(() => setLastAction(""), 2000)
   }

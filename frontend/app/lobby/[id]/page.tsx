@@ -21,7 +21,7 @@ export default function LobbyPage() {
   const [isHost, setIsHost] = useState(false);
   const [copied, setCopied] = useState(false)
   const { players, currentPlayer, gameStatus, setGameId, addPlayer, setCurrentPlayer, setGameStatus } = useGameStore()
-
+  let canStart = false;
 
   useEffect(() => {
     websocket.emit("getRoomInfo",gameId);
@@ -56,6 +56,12 @@ export default function LobbyPage() {
       };
   }, [gameId, playerName])
 
+  useEffect(() => {
+    canStart = players.length >= 2 && isHost && gameStatus === "waiting" 
+    console.log(players.length)
+    console.log(isHost)
+    console.log(gameStatus)
+  }, [players, isHost, gameStatus]);
 
   const copyGameId = async () => {
     try {
@@ -72,8 +78,6 @@ export default function LobbyPage() {
       websocket.emit("startGame", gameId);
       }
     }
-
-  const canStart = players.length >= 2 && isHost && gameStatus === "waiting"
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
