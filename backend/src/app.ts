@@ -43,8 +43,19 @@ app.get("/getRooms",(req,res)=>{
     res.json(roomsPlayers);
 })
 
+app.get("/weapons",(req,res)=>{
+    const weapons = [
+        { name: "Knife", damage: 5, range: 25 },
+        { name: "Basic Pistol", damage: 5, range: 50 },
+        { name: "Shotgun", damage: 15, range: 75 },
+        { name: "Rocket Launcher", damage: 30, range: 200 },
+    ];
+    res.json(weapons);
+});
+
+
 app.get("/version",(req,res)=>{
-    res.json({version: "0.1.0"});
+    res.json({version: "0.1.1"});
 })
 
 io.on("connection", (socket) => {
@@ -70,7 +81,7 @@ io.on("connection", (socket) => {
             }
             playerId = makeid(2,playerIdWhitelist);
         }
-        let newPlayer = createPlayer(playerId,playerName,{isHost:true,isSpectator:false});
+        let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         assignedPlayerIds.push(playerId);
         console.log(`Created player with id: ${playerId}`)
 

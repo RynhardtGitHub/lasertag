@@ -24,16 +24,22 @@ export default function LobbyPage() {
 
 
   useEffect(() => {
-    const hostParam = searchParams.get("host")
-    setIsHost(hostParam === "true")
-  }, [searchParams])
-
-  useEffect(() => {
     websocket.emit("getRoomInfo",gameId);
 
     const handleUpdateRoom = (playersFromServer : typeof players)=>{
       useGameStore.getState().setPlayers(playersFromServer);
 
+      for (const player of playersFromServer) {
+        if (player.id === websocket.getId()) {
+          if (player.isHost!= undefined) {
+            console.log("Player is host:", player.isHost);
+            setIsHost(player.isHost);
+            setCurrentPlayer(player);
+            setGameId(gameId);
+          }
+        }
+      }
+      
     }
 
     const readyUp = (gameId: string) => {
@@ -51,7 +57,6 @@ export default function LobbyPage() {
         websocket.off("readyUp", readyUp);
       };
   }, [gameId, playerName])
-
 
   const copyGameId = async () => {
     try {
