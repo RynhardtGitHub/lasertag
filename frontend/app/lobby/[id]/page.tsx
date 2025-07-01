@@ -15,25 +15,45 @@ export default function LobbyPage() {
   const router = useRouter()
   const gameId = params.id as string
   const playerName = searchParams.get("name") || "Anonymous"
-  const isHost = searchParams.get("host") === "true";
+  const websocket = getWebSocket();
 
+
+  const [isHost, setIsHost] = useState(false);
   const [copied, setCopied] = useState(false)
   const { players, currentPlayer, gameStatus, setGameId, addPlayer, setCurrentPlayer, setGameStatus } = useGameStore()
 
 
   useEffect(() => {
-    const websocket = getWebSocket();
-    
     websocket.emit("getRoomInfo",gameId);
 
     const handleUpdateRoom = (playersFromServer : typeof players)=>{
       useGameStore.getState().setPlayers(playersFromServer);
+
+      for (const player of playersFromServer) {
+        if (player.id === websocket.getId()) {
+          if (player.isHost!= undefined) {
+            console.log("Player is host:", player.isHost);
+            setIsHost(player.isHost);
+          }
+        }
+      }
     }
 
-    
+    const readyUp = (gameId: string) => {
+      console.log("Ready up received for game:", gameId);
+      setTimeout(() => {
+        router.push(`/game/${gameId}`)
+      }, 3000)
+    }
+
+    websocket.on("readyUp", readyUp);
     websocket.on("updateRoom", handleUpdateRoom);
 
-  }, [gameId, playerName, isHost])
+     return () => {
+        websocket.off("updateRoom", handleUpdateRoom);
+        websocket.off("readyUp", readyUp);
+      };
+  }, [gameId, playerName])
 
 
   const copyGameId = async () => {
@@ -47,16 +67,12 @@ export default function LobbyPage() {
   }
 
   const startGame = () => {
-    if (players.length >= 2) {
-      // Reduced for demo
-      setGameStatus("starting")
-      setTimeout(() => {
-        router.push(`/game/${gameId}`)
-      }, 3000)
-    }
+    if (isHost && players.length >= 2){
+        websocket.emit("startGame", gameId);
+      }
   }
 
-  const canStart = players.length >= 2 && isHost && gameStatus === "waiting"
+  const canStart = isHost && players.length >= 2;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
