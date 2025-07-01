@@ -147,10 +147,7 @@ io.on("connection", (socket) => {
         if (typeof callback === "function") {
             callback({ success: true });
         }
-
-
         // io.to(data.gameID).emit("updateRoom", roomsPlayers[data.gameID])
-
     })
 });
 

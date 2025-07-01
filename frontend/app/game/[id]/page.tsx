@@ -82,7 +82,7 @@ export default function GamePage() {
       // Sample center area of the image
       const centerX = canvas.width / 2
       const centerY = canvas.height / 2
-      const sampleSize = 50
+      const sampleSize = 150
 
       const imageData = ctx.getImageData(centerX - sampleSize / 2, centerY - sampleSize / 2, sampleSize, sampleSize)
 
