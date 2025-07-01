@@ -93,7 +93,7 @@ io.on("connection", (socket) => {
         socket.emit("sendRoom", roomID,[]);
     })
 
-    socket.on("getRoomInfo",(roomID)=>{
+    socket.on("getRoomInfo",(roomID, callback)=>{
         // Assuming that initRoom is only called after rendering the lobby page
         if (roomID==null){
             return;
@@ -104,6 +104,10 @@ io.on("connection", (socket) => {
         }
 
         const activePlayers= roomsPlayers[roomID].filter((p) => !p.isSpectator)
+        
+        if (callback) {
+            callback({ success: true, activePlayers }); // ✅ only call if it exists
+        }
 
         io.to(roomID).emit("updateRoom", activePlayers)
     })
@@ -204,6 +208,17 @@ io.on("connection", (socket) => {
     socket.on("triggerEvent",(data)=>{
         if (data.eventType<0){
             return;
+        }
+        switch (data.eventType) {
+            case 0: // shoot event
+                console.log("shoot him")
+                break;
+
+            case 1: // heal event
+                console.log("heal")
+        
+            default:
+                break;
         }
 
     })
