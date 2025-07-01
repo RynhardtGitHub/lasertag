@@ -15,6 +15,8 @@ export default function LobbyPage() {
   const router = useRouter()
   const gameId = params.id as string
   const playerName = searchParams.get("name") || "Anonymous"
+  const websocket = getWebSocket();
+
 
   const [isHost, setIsHost] = useState(false);
   const [copied, setCopied] = useState(false)
@@ -22,8 +24,6 @@ export default function LobbyPage() {
 
 
   useEffect(() => {
-    const websocket = getWebSocket();
-    
     websocket.emit("getRoomInfo",gameId);
 
     const handleUpdateRoom = (playersFromServer : typeof players)=>{
@@ -39,10 +39,20 @@ export default function LobbyPage() {
       }
     }
 
+    const readyUp = (gameId: string) => {
+      console.log("Ready up received for game:", gameId);
+      setTimeout(() => {
+        router.push(`/game/${gameId}`)
+      }, 3000)
+    }
+
+    websocket.on("readyUp", readyUp);
+
     websocket.on("updateRoom", handleUpdateRoom);
 
      return () => {
         websocket.off("updateRoom", handleUpdateRoom);
+        websocket.off("readyUp", readyUp);
       };
   }, [gameId, playerName])
 
@@ -59,12 +69,8 @@ export default function LobbyPage() {
 
   const startGame = () => {
     if (isHost && players.length >= 2){
-      router.push(`/game/${gameId}`)
-
-    }
-      // setTimeout(() => {
-      //   router.push(`/game/${gameId}`)
-      // }, 3000)
+      websocket.emit("startGame", gameId);
+      }
     }
 
   const canStart = players.length >= 2 && isHost && gameStatus === "waiting"

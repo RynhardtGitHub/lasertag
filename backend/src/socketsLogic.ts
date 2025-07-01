@@ -8,17 +8,28 @@ interface ServerToClientEvents {
   basicEmit: (a: number, b: string, c: Buffer) => void;
   withAck: (d: string, callback: (e: number) => void) => void;
   sendGameState : (players:Array<string>,gameID:string,gameStatus:number)=>void;
+
+  //room logic
   sendRoom: (room:string,players:Array<string>)=>void;
   updateRoom : (players:Array<Player>)=>void;
+
+  //start game logic
+  readyUp: (gameID:string)=>void;
 }
 
 
 interface ClientToServerEvents {
   hello: () => void;
+  //room logic
   create: (playerName:string) => void;
   join : (data:{ gameID: string; playerName: string},callback:(res:JoinRoomResponse)=>void)=>void;
   getRoomInfo : (roomID:string)=>void;
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
+
+  //start game logic
+  startGame: (gameID:string)=>void;
+  startGameMessageRecievied: (gameID:string,playerID:string)=>void;
+
 }
 
 

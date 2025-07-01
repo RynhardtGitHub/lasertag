@@ -65,7 +65,6 @@ io.on("connection", (socket) => {
         if (roomID==null){
             return;
         }
-
         const availRooms = getRooms();
         if (!availRooms.includes(roomID)){
             return;
@@ -106,8 +105,6 @@ io.on("connection", (socket) => {
         }
 
         const activePlayers= roomsPlayers[data.gameID].filter((p) => !p.isSpectator)
-
-
         io.to(data.gameID).emit("updateRoom", activePlayers)
 
     })
@@ -147,6 +144,13 @@ io.on("connection", (socket) => {
             callback({ success: true });
         }
         // io.to(data.gameID).emit("updateRoom", roomsPlayers[data.gameID])
+    })
+
+    socket.on("startGame", (gameID)=>{
+        if (!roomsPlayers[gameID]) {
+            return;
+        }
+        socket.to(gameID).emit("readyUp", gameID);
     })
 });
 
