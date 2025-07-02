@@ -16,6 +16,13 @@ interface ServerToClientEvents {
   //start game logic
   readyUp: (gameID:string)=>void;
 
+
+  //time logic
+  updateTimer: (timerVal:number)=>void;
+
+  //end game logic
+  endSession: ()=>void;
+
   requestOffer: (data: { spectatorId: string }) => void; // Fixed: should be spectatorId
   offerFromPlayer: (data: { offer: RTCSessionDescriptionInit; from: string }) => void;
   receiveAnswer: (data: { answer: RTCSessionDescriptionInit; from: string }) => void; // Keep for backward compatibility
@@ -24,6 +31,7 @@ interface ServerToClientEvents {
   webrtcCandidate: (data: { candidate: RTCIceCandidateInit; from: string }) => void; // Added: what clients expect
   spectatorConnected: (spectatorId: string) => void; // Fixed: changed from hyphenated version
   "spectator-connected": (spectatorId: string) => void; // Added: what game client expects
+
 }
 
 

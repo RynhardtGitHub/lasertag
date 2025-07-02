@@ -19,6 +19,7 @@
     const gameId = params.id as string
     const websocket = getWebSocket();
     const webSocket = getWebSocket();  
+    const websocket = getWebSocket();  
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -31,7 +32,8 @@
 
     //const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
     const players = useGameStore((state) => state.players);
-    const currentPlayer = useGameStore((state) => state.currentPlayer);
+    // const currentPlayer = useGameStore((state) => state.currentPlayer);
+    const { currentPlayer, setCurrentPlayer } = useGameStore();
     const setPlayers = useGameStore((state) => state.setPlayers);
     const setGameTime = useGameStore((state) => state.setGameTime);
     const shootPlayer = useGameStore((state) => state.shootPlayer);
@@ -75,6 +77,19 @@
         console.error("Failed to play sound:", err);
       }
     };
+
+    // Weapon setup
+    const weapons = [
+      { name: "Knife", damage: 5, range: 25 },
+      { name: "Basic Pistol", damage: 5, range: 50 },
+      { name: "Shotgun", damage: 15, range: 75 },
+      { name: "Rocket Launcher", damage: 30, range: 200 },
+    ];
+    let playerWeapon = weapons[1]; // basic pistol
+
+    const randomiseWeapon = () => {
+      return weapons[Math.floor( Math.random() * weapons.length )];
+    }
 
     /*
     detectColor is also performing OCR
@@ -132,9 +147,9 @@
         gameID: `${gameId}`,
         eventType: 0,
         eventData: {
-          shooterId: currentPlayer.id,
-          targetId: matchedPlayer.id,
-          shootId: playerId,
+          shooter: currentPlayer?.shootId,
+          victim: matchedPlayer?.shootId,
+          weapon: playerWeapon,
         }
       });
 
@@ -182,22 +197,35 @@
       console.log("modelYOLO:", net);
     }, [net, inputShape]);
 
-    useEffect(() => {
-      webSocket.emit("getRoomInfo", gameId);
+  // Fetch data every two seconds
+  useEffect(() => {
+    // guard: don’t start polling until we know our gameId
+    if (!gameId) return
 
-      const handleUpdateRoom = (playersFromServer: typeof players) => {
-        useGameStore.getState().setPlayers(playersFromServer);
-        setRoomPlayers(playersFromServer);
-      };
+    const interval = setInterval(() => {
+      webSocket.emit(
+        'getRoomInfo',
+        gameId,
+        (res: { success?: boolean; activePlayers?: any[]; error?: string }) => {
+          if (res.error) {
+            console.error('Failed to fetch room info:', res.error)
+            return
+          }
+          if (res.success && Array.isArray(res.activePlayers)) {
+            // shove the live list of players into your store
+            setPlayers(res.activePlayers)
+            res.activePlayers.forEach((p) => {
+              if (p.shootId === currentPlayer?.shootId) {
+                setCurrentPlayer(p);
+              }
+            })
+          }
+        }
+      )
+    }, 2_000)
 
-      webSocket.on("updateRoom", handleUpdateRoom);
-
-      return () => {
-        webSocket.off("updateRoom", handleUpdateRoom); // clean up listener
-      };
-    }, [webSocket, gameId]);
-    
-        // 1-second countdown timer
+    return () => clearInterval(interval)
+  }, [gameId, webSocket, setPlayers])
 useEffect(() => {
   const timer = setInterval(() => {
     setGameTime(Math.max(0, gameTime - 1));
@@ -209,27 +237,6 @@ useEffect(() => {
 
   return () => clearInterval(timer);
 }, [gameTime, gameId, router, setGameTime]);
-
-useEffect(() => {
-  const interval = setInterval(() => {
-    if (currentPlayer) {
-      healPlayer(currentPlayer.id);
-      console.log("30s");
-      webSocket.emit("misc", currentPlayer.id);
-
-      webSocket.on("updateRoom", (updatedPlayers) => {
-          useGameStore.getState().setPlayers(updatedPlayers);
-          console.log("Updated players:", updatedPlayers)
-          });
-      setLastAction("You gained passive regen!");
-
-      setTimeout(() => setLastAction(""), 2000)
-    }
-  }, 30000);
-
-  return () => clearInterval(interval);
-}, [currentPlayer, healPlayer]);
-
 
     // Camera setup
     useEffect(() => {
@@ -438,113 +445,22 @@ useEffect(() => {
       }
 
       webSocket.on("updateRoom", handleUpdateRoom);
-    },[]);
+      webSocket.on('endSession', () => router.push(`/results/${gameId}`));
+      webSocket.on('updateTimer', (timerVal) => {
+        setGameTime(timerVal);
+      });
+      webSocket.on("updateRoom", handleUpdateRoom);
+      webSocket.on('endSession', () => router.push(`/results/${gameId}`));
+      webSocket.on('updateTimer', (timerVal) => {
+        setGameTime(timerVal);
 
-    // 3. Update your detectColor function to work with the new system:
-async function detectColor() {
-  if (!cameraActive || !videoRef.current || !canvasRef.current) return
-
-  console.log('Color detection clicked')
-
-  const video = videoRef.current!
-  const canvas = canvasRef.current!
-  const ctx = canvas.getContext("2d")!
-
-  // Sample center area of the image for color detection
-  const centerX = canvas.width / 2
-  const centerY = canvas.height / 2
-  const sampleSize = 150
-
-  const imageData = ctx.getImageData(
-    centerX - sampleSize / 2,
-    centerY - sampleSize / 2,
-    sampleSize,
-    sampleSize
-  )
-
-  let r = 0, g = 0, b = 0
-  const pixels = imageData.data.length / 4
-
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    r += imageData.data[i]
-    g += imageData.data[i + 1]
-    b += imageData.data[i + 2]
-  }
-
-  r = Math.floor(r / pixels)
-  g = Math.floor(g / pixels)
-  b = Math.floor(b / pixels)
-
-  // Detect dominant color and trigger actions
-  const threshold = 50
-  if (r > g + threshold && r > b + threshold) {
-    setDetectedColor("red")
-    handleColorAction("red")
-  } else if (g > r + threshold && g > b + threshold) {
-    setDetectedColor("green")
-    handleColorAction("green")
-  } else if (b > r + threshold && b > g + threshold) {
-    setDetectedColor("blue")
-    handleColorAction("blue")
-  } else {
-    setDetectedColor(null)
-  }
-}
-
-
-    const handleNumberAction = async (detectedNumber: string) => {
-      if (!currentPlayer) return
-
-      console.log("Handling number action for:", detectedNumber)
-
-      const now = Date.now()
-      const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
-
-      // Prevent spam (1 second cooldown)
-      if (now - lastActionTime < 1000) return
-
-      localStorage.setItem("lastActionTime", now.toString())
-
-      setLastAction(`${detectedNumber}`)
-      
-      try {
-        const matchedPlayer = roomPlayers.find(
-          (player) => player.shootId.toLowerCase() === detectedNumber.toLowerCase()
-        );
-
-        console.log("Matched player:", matchedPlayer)
-        console.log(roomPlayers)
-
-        if (matchedPlayer) {
-          console.log("Target acquired:", matchedPlayer.name);
-
-          webSocket.emit("triggerEvent", {
-            gameID: `${gameId}`,
-            eventType: 0,
-            eventData: {
-              shooterId: currentPlayer.id,
-              targetId: matchedPlayer.id,
-              shootId: detectedNumber,
-            }}
-          );
-
-          console.log("Shoot event triggered for", matchedPlayer.name);
-
-          setLastAction(`Shot ${matchedPlayer.name}!`);
-        } else {
-          // console.log("No matching shoot ID found for", detectedNumber);
-          setLastAction("Missed! No player found.");
+        // Randomise weapon on two min remaining
+        if (timerVal === 120) {
+          playerWeapon = randomiseWeapon();
+          console.log(`Randomised weapon!`);
         }
-
-        // websocket.emit("shootPlayer", detectedNumber);
-
-      } catch (err) {
-        console.error("Failed to get room info:", err);
-      }
-      // websocket.emit('shootPlayer', detectedNumber);
-
-      setTimeout(() => setLastAction(""), 2000)
-    }
+      });
+    },[]);
 
     const handleColorAction = (color: string) => {
       if (!currentPlayer) return
@@ -726,7 +642,10 @@ async function detectColor() {
           {/* Exit Button */}
           {currentPlayer.isHost && (
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-              <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
+              <Button onClick={() => {
+                webSocket.emit('endGame', gameId);
+                router.push(`/results/${gameId}`);
+            }} variant="destructive" className="w-full">
                 End Game
               </Button>
             </div>

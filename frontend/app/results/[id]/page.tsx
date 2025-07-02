@@ -5,13 +5,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/store"
 import { Trophy, Medal, Zap, Heart, Home, RotateCcw } from "lucide-react"
+import { getWebSocket } from "@/lib/websocket"
 
 export default function ResultsPage() {
   const params = useParams()
   const router = useRouter()
   const gameId = params.id as string
+  const webSocket = getWebSocket();
 
-  const { players, resetGame } = useGameStore()
+  const { players, setPlayers, resetGame } = useGameStore()
+  webSocket.emit(
+    'getRoomInfo',
+    gameId,
+    (res: { success?: boolean; activePlayers?: any[]; error?: string }) => {
+      if (res.error) {
+        console.error('Failed to fetch room info:', res.error)
+        return
+      }
+      if (res.success && Array.isArray(res.activePlayers)) {
+        setPlayers(res.activePlayers)
+      }
+    }
+  )
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
   const winner = sortedPlayers[0]

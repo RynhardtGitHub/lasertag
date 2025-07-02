@@ -1,7 +1,9 @@
 "use client"
 
+
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { useParams } from "next/navigation"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/store"
@@ -11,13 +13,18 @@ import { getWebSocket } from "@/lib/websocket"
 export default function SpectatePage() {
   const params = useParams()
   const gameId = params.id as string
+  const router = useRouter();
+  const webSocket = getWebSocket();
 
-  const { players, gameTime, setGameId } = useGameStore()
+
+  const { players, gameTime, setPlayers, setGameId, setGameTime } = useGameStore();
+
   const [socket, setSocket] = useState<ReturnType<typeof getWebSocket> | null>(null)
   const [playerStreams, setPlayerStreams] = useState<Record<string, MediaStream>>({})
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({})
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
   const processingOffers = useRef<Set<string>>(new Set())
+
 
   useEffect(() => {
     Object.entries(playerStreams).forEach(([playerId, stream]) => {
@@ -226,6 +233,39 @@ export default function SpectatePage() {
       ws.off("playerDisconnected", handlePlayerDisconnected)
     }
   }, [gameId])
+
+  // Game timer setup
+  const [timerId, setTimerId] = useState<number | null>(null)
+
+  // Fetch data every two seconds
+  useEffect(() => {
+    // guard: don’t start polling until we know our gameId
+    if (!gameId) return
+
+    const interval = setInterval(() => {
+      webSocket.emit(
+        'getRoomInfo',
+        gameId,
+        (res: { success?: boolean; activePlayers?: any[]; error?: string }) => {
+          if (res.error) {
+            console.error('Failed to fetch room info:', res.error)
+            return
+          }
+          if (res.success && Array.isArray(res.activePlayers)) {
+            // shove the live list of players into your store
+            setPlayers(res.activePlayers)
+          }
+        }
+      )
+    }, 2_000)
+
+    return () => clearInterval(interval)
+  }, [gameId, webSocket, setPlayers])
+  
+  webSocket.on('updateTimer', (timerVal) => {
+    setGameTime(timerVal);
+  });
+  webSocket.on('endSession', () => router.push(`/results/${gameId}`));
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)

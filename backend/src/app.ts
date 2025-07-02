@@ -5,6 +5,7 @@ import cors from "cors";
 import { makeid } from "./misc";
 import { createPlayer } from "./misc";
 import { Player } from "./types";
+import { defaultMaxListeners } from "events";
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -12,6 +13,9 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
+let roomTimers: {[key:string] : number} = {};
+let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
+let defaultTime = 300;
 let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
 
 let assignedPlayerIds: Array<string> = [];
@@ -31,6 +35,18 @@ function getRooms(){
     return filteredRooms
 }
 
+export interface TriggerEventPayload {
+    gameID: string,
+    eventType: number;
+    eventData: {
+      weapon?: {
+        name: string;
+        damage: number;
+        range: number;
+      },
+      [key: string]: any;
+    };
+  }
 
 app.get('/', (req: Request, res: Response) => {
     res.send('Hello from Express with TypeScript!');
@@ -71,12 +87,6 @@ io.on("connection", (socket) => {
     let letterWhitelist = 'APU';
 
     socket.on("create",(playerName)=>{
-        // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
-
-        // let playerIdWhitelist = 'APURM0123456789';
-        // let playerId = makeid(2,playerIdWhitelist);
-
-        /* Sus workaround to creating an id with one number and lettter */
         let playerId = makeid(1,numberWhitelist);
         playerId += makeid(1,letterWhitelist);
         //TODO CHANGE BACK
@@ -85,9 +95,10 @@ io.on("connection", (socket) => {
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         console.log(`Created player with id: ${playerId}`)
 
-        const roomID = makeid(6); 
+        const roomID = makeid(6);
         socket.join(roomID)
         roomsPlayers[roomID]=[newPlayer];
+        roomTimers[roomID] = defaultTime;
 
         socket.emit("sendRoom", roomID,[]);
     })
@@ -136,7 +147,8 @@ io.on("connection", (socket) => {
 
         if (!playerExists) {
             const players = roomsPlayers[data.gameID];
-            if (players.length >= numberWhitelist.length * letterWhitelist.length){
+            // if (players.length >= numberWhitelist.length * letterWhitelist.length){
+            if (players.length >= numberWhitelist.length){
                 console.warn(`Max players for game ${data.gameID} reached`);
                 if (typeof callback === "function") {
                     callback({ success: false, message: "Room is full." });
@@ -203,13 +215,45 @@ io.on("connection", (socket) => {
      * 1 => heal
      * 2 => ...
      */
-    socket.on("triggerEvent",(data)=>{
+    socket.on("triggerEvent",(data: TriggerEventPayload)=>{
         if (data.eventType<0){
             return;
         }
+
+        console.log('eventData')
+        console.log(data.eventData)
+
         switch (data.eventType) {
             case 0: // shoot event
-                console.log("shoot him")
+                let damage = data.eventData.weapon?.damage || 10; // Default damage=10
+                let victimId = data.eventData.victim;
+                let shooterId = data.eventData.shooter;
+
+                // Decrease player health
+                const updatedPlayers = roomsPlayers[data.gameID].map(p => {
+                    // hit the victim
+                    if (p.shootId === victimId) {
+                      const newHealth = p.health - damage;
+
+                      console.log(`Hit player: ${victimId}`)
+                      return {
+                        ...p,
+                        health: newHealth,
+                        isAlive: newHealth > 0
+                      };
+                    }
+                    // reward the shooter
+                    if (p.shootId === shooterId) {
+                        console.log(`${shooterId} points: ${p.score + 5}`)
+                      return {
+                        ...p,
+                        score: p.score + 5
+                      };
+                    }
+                    // everyone else stays the same
+                    return p;
+                  });
+                  roomsPlayers[data.gameID] = updatedPlayers;
                 break;
 
             case 1: // heal event
@@ -226,13 +270,69 @@ io.on("connection", (socket) => {
         }
         io.to(gameID).emit("readyUp", gameID);
 
-        console.log(roomsPlayers[gameID]);
+        roomIntervals[gameID] = setInterval(() => {
+            if (roomTimers[gameID] > 0) {
+              roomTimers[gameID]--;
+        
+              // Optionally: emit updated time to clients
+              io.to(gameID).emit("updateTimer", roomTimers[gameID]);
+            } else {
+              clearInterval(roomIntervals[gameID]);
+              delete roomIntervals[gameID];
+              console.log(`Timer for room ${gameID} ended.`);
+              
+              io.to(gameID).emit("endSession");
+            }
+          }, 1000); // every second
     })
+
+    socket.on('endGame', (gameID)=>{
+        io.to(gameID).emit('endSession');
+    });
 
     // Also add disconnect socket
     // socket.on("erasePlayer", async (playerId) => {
     //     console.log(roomsPlayers)
     //     console.log(assignedPlayerIds)
+    // })
+
+
+    //  socket.on("misc", (currPlayerId)=>{
+    //     //ranodm number 
+    //     const randomNumber = Math.floor(Math.random() * 2) + 1;
+
+    //     //case statment to determine which power up
+    //     switch(randomNumber) {
+    //         case 1:     //increased health
+    //             if (currentRoomID){
+    //                 let shooter = roomsPlayers[currentRoomID]?.find(
+    //                     (player) => player.id === currPlayerId
+    //                 );
+                    
+    //                 if (shooter){
+    //                     shooter.health = 100;
+    //                     console.log("H " + shooter.health);
+    //                 }
+                    
+    //             }
+    //         case 2:
+    //             case 1:     //weapon change
+    //             if (currentRoomID){
+    //                 let shooter = roomsPlayers[currentRoomID]?.find(
+    //                     (player) => player.id === currPlayerId
+    //                 );
+                    
+    //                 if (shooter){
+    //                     shooter.weapon = Arsenal[Math.floor(Math.random() * 3) + 0];
+    //                     console.log("W " + shooter.weapon);
+    //                 }
+                    
+    //             }    
+    //     }
+    //     if(currentRoomID)
+    //     {
+    //         io.to(currentRoomID).emit("updateRoom", roomsPlayers[currentRoomID]);
+    //     }
     // })
 
     //streaming
@@ -301,7 +401,6 @@ io.on("connection", (socket) => {
             from: socket.id 
         });
     });
-
 
 
 });
