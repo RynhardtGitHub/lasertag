@@ -65,25 +65,20 @@ io.on("connection", (socket) => {
         console.log("Ack from client:", e);
     });
 
+    let numberWhitelist = '123';
+    let letterWhitelist = 'APU';
+
     socket.on("create",(playerName)=>{
         // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
 
-        let playerIdWhitelist = 'ABSK12345678';
-        let playerId = makeid(2,playerIdWhitelist);
-        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
-            // Max number of players reached
-            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
-                return {
-                    success: false,
-                    error: true,
-                    message: 'Maximum number of players reached',
-                }
-            }
-            playerId = makeid(2,playerIdWhitelist);
-        }
+        // let playerIdWhitelist = 'APURM0123456789';
+        // let playerId = makeid(2,playerIdWhitelist);
+
+        /* Sus workaround to creating an id with one number and lettter */
+        let playerId = makeid(1,numberWhitelist);
+        playerId += makeid(1,letterWhitelist);
 
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
-        assignedPlayerIds.push(playerId);
         console.log(`Created player with id: ${playerId}`)
 
         const roomID = makeid(6); 
@@ -93,7 +88,7 @@ io.on("connection", (socket) => {
         socket.emit("sendRoom", roomID,[]);
     })
 
-    socket.on("getRoomInfo",(roomID)=>{
+    socket.on("getRoomInfo",(roomID, callback)=>{
         // Assuming that initRoom is only called after rendering the lobby page
         if (roomID==null){
             return;
@@ -104,6 +99,10 @@ io.on("connection", (socket) => {
         }
 
         const activePlayers= roomsPlayers[roomID].filter((p) => !p.isSpectator)
+        
+        if (callback) {
+            callback({ success: true, activePlayers }); // ✅ only call if it exists
+        }
 
         io.to(roomID).emit("updateRoom", activePlayers)
     })
@@ -128,24 +127,27 @@ io.on("connection", (socket) => {
 
         playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
 
-        let playerIdWhitelist = 'ABSK12345678';
-        let playerId = makeid(2,playerIdWhitelist);
-        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
-            // Max number of players reached
-            if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
-                return {
-                    success: false,
-                    error: true,
-                    message: 'Maximum number of players reached',
-                }
-            }
-            playerId = makeid(2,playerIdWhitelist);
-        }
-
+        // let playerIdWhitelist = 'APURM0123456789';
+        // let playerId = makeid(2,playerIdWhitelist);
 
         if (!playerExists) {
+            const players = roomsPlayers[data.gameID];
+            if (players.length >= numberWhitelist.length * letterWhitelist.length){
+                console.warn(`Max players for game ${data.gameID} reached`);
+                if (typeof callback === "function") {
+                    callback({ success: false, message: "Room is full." });
+                }
+                return;
+            }
+            const idExists = (id: string) => players.some(p => p.shootId === id);
+            let playerId;
+            do {
+                playerId = makeid(1, numberWhitelist) + makeid(1, letterWhitelist);
+            } while (idExists(playerId));
+
             const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
             roomsPlayers[data.gameID].push(newPlayer);
+            console.log(`New player joined with ID: ${playerId}`)
         }
 
         if (typeof callback === "function") {
@@ -192,6 +194,31 @@ io.on("connection", (socket) => {
             callback({ success: true });
         }
         // io.to(data.gameID).emit("updateRoom", roomsPlayers[data.gameID])
+    })
+
+
+    /**
+     * EVENTTYPES
+     * 0 => shoot
+     * 1 => heal
+     * 2 => ...
+     */
+    socket.on("triggerEvent",(data)=>{
+        if (data.eventType<0){
+            return;
+        }
+        switch (data.eventType) {
+            case 0: // shoot event
+                console.log("shoot him")
+                break;
+
+            case 1: // heal event
+                console.log("heal")
+        
+            default:
+                break;
+        }
+
     })
 
     socket.on("startGame", (gameID)=>{
