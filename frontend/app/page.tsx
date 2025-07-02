@@ -27,17 +27,21 @@ export default function HomePage() {
   }
 
   const joinGame = () => {
-    if (!playerName.trim() || !gameId.trim()) return
-
-    webSocket.emit("join",{"gameID":gameId,"playerName":playerName},(response)=>{
+    if (!playerName.trim() || !gameId.trim()) return;
+  
+    webSocket.emit(
+      "join",
+      { gameID: gameId, playerName },
+      (response) => {
         if (!response.success) {
-          alert(response.message); // or show error in UI
+          alert(response.message); 
+          console.log("Join failed:", response.message);
           return;
+        }
+        router.push(`/lobby/${gameId}?name=${encodeURIComponent(playerName)}`);
       }
-    });
-
-    router.push(`/lobby/${gameId}?name=${encodeURIComponent(playerName)}`)
-  }
+    );
+  };
 
   const spectateGame = () => {
     if (!gameId.trim()) return
@@ -49,7 +53,7 @@ export default function HomePage() {
       }
     });
 
-    
+
     router.push(`/spectate/${gameId}`)
   }
 
