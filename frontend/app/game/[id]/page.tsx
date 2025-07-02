@@ -403,7 +403,7 @@
           )}
 
           {/* Weapon Info */}
-          <div className="absolute bottom-20 left-4 right-4">
+          <div className={`absolute ${currentPlayer.isHost ? 'bottom-20' : 'bottom-4'} left-4 right-4`}>
             <Card className="bg-black/70 border-gray-600">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between text-white text-sm">
@@ -428,11 +428,13 @@
           </div>
 
           {/* Exit Button */}
-          <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-            <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
-              End Game
-            </Button>
-          </div>
+          {currentPlayer.isHost && (
+            <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
+              <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
+                End Game
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     )
