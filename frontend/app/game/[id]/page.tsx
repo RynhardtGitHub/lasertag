@@ -216,9 +216,9 @@ useEffect(() => {
           gameID: `${gameId}`,
           eventType: 0,
           eventData: {
-            shooterId: currentPlayer.id,
-            targetId: matchedPlayer.id,
-            shootId: matchedPlayer.shootId,
+            shooter: currentPlayer.shootId,
+            victim: matchedPlayer.shootId,
+            weapon: playerWeapon,
           }
         });
 
