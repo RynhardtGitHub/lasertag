@@ -16,6 +16,9 @@ let roomsPlayers: { [key: string]: Array<Player> } = {}
 let roomTimers: {[key:string] : number} = {};
 let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
 let defaultTime = 300;
+let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
+
+let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
 app.use(express.json());
@@ -85,7 +88,7 @@ io.on("connection", (socket) => {
 
     socket.on("create",(playerName)=>{
         let playerId = makeid(1,numberWhitelist);
-        // playerId += makeid(1,letterWhitelist);
+        playerId += makeid(1,letterWhitelist);
         //TODO CHANGE BACK
 
         // playerId = "1"
@@ -155,7 +158,7 @@ io.on("connection", (socket) => {
             const idExists = (id: string) => players.some(p => p.shootId === id);
             let playerId;
             do {
-                playerId = makeid(1, numberWhitelist);
+                playerId = makeid(1, numberWhitelist) + makeid(1, letterWhitelist);
             } while (idExists(playerId));
 
             const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
@@ -190,18 +193,14 @@ io.on("connection", (socket) => {
             roomsPlayers[data.gameID] = [];
         }
 
-        let spectatorName;
-
-        if (data.playerName==undefined){
-            spectatorName = "";
-        }else{
-            spectatorName = data.playerName;
+        if (!roomsPlayers[data.gameID]) {
+            roomsPlayers[data.gameID] = [];
         }
 
-        if (!playerExists) {
-            const newSpec = createPlayer(socket.id,spectatorName,"", { isHost: false, isSpectator: true });
-            roomsPlayers[data.gameID].push(newSpec);
-        }
+        let spectatorName = data.playerName || "";
+
+        const newSpec = createPlayer(socket.id, spectatorName, "", { isHost: false, isSpectator: true });
+        roomsPlayers[data.gameID].push(newSpec);
 
         if (typeof callback === "function") {
             callback({ success: true });
@@ -255,7 +254,6 @@ io.on("connection", (socket) => {
                     return p;
                   });
                   roomsPlayers[data.gameID] = updatedPlayers;
-
                 break;
 
             case 1: // heal event
@@ -298,6 +296,7 @@ io.on("connection", (socket) => {
     //     console.log(assignedPlayerIds)
     // })
 
+
     //  socket.on("misc", (currPlayerId)=>{
     //     //ranodm number 
     //     const randomNumber = Math.floor(Math.random() * 2) + 1;
@@ -335,9 +334,78 @@ io.on("connection", (socket) => {
     //         io.to(currentRoomID).emit("updateRoom", roomsPlayers[currentRoomID]);
     //     }
     // })
+
+    //streaming
+    socket.on("playerReadyForStream", ({ gameId }) => {
+        socket.join(gameId);
+        socket.data.role = "player";
+        socket.data.gameId = gameId;
+        console.log(`Player ${socket.id} ready to stream in game ${gameId}`);
+    });
+
+    // Spectator joins the game room
+    socket.on("spectatorJoin", ({ gameId }) => {
+        socket.join(gameId);
+        socket.data.role = "spectator";
+        socket.data.gameId = gameId;
+        console.log(`Spectator ${socket.id} joined game ${gameId}`);
+
+        // Method 1: Notify all players that a spectator connected (hyphenated version for game client)
+        socket.to(gameId).emit("spectator-connected", socket.id);
+        
+        // Method 2: Also request offers from all players (alternative approach)
+        const room = io.sockets.adapter.rooms.get(gameId);
+        if (room) {
+            for (const socketId of room) {
+                const peer = io.sockets.sockets.get(socketId);
+                if (peer?.data.role === "player" && socketId !== socket.id) {
+                    console.log(`Requesting offer from player ${socketId} for spectator ${socket.id}`);
+                    peer.emit("requestOffer", { spectatorId: socket.id });
+                }
+            }
+        }
+    });
+
+    // Player sends WebRTC offer to spectator
+    socket.on("webrtcOffer", ({ to, from, sdp, gameId }) => {
+        console.log(`Relaying WebRTC offer from ${from} to ${to} in game ${gameId || 'unknown'}`);
+        io.to(to).emit("offerFromPlayer", { 
+            offer: sdp, 
+            from: from || socket.id 
+        });
+    });
+
+    // Spectator sends WebRTC answer to player
+    socket.on("webrtcAnswer", ({ to, sdp }) => {
+        console.log(`Relaying WebRTC answer from ${socket.id} to ${to}`);
+        io.to(to).emit("webrtcAnswer", { 
+            answer: sdp, 
+            from: socket.id 
+        });
+    });
+
+    // Alternative answer event (in case spectate page uses different event name)
+    socket.on("sendAnswer", ({ answer, to }) => {
+        console.log(`Relaying answer (via sendAnswer) from ${socket.id} to ${to}`);
+        io.to(to).emit("webrtcAnswer", { 
+            answer: answer, 
+            from: socket.id 
+        });
+    });
+
+    // ICE candidates exchange (bidirectional)
+    socket.on("webrtcCandidate", ({ to, candidate }) => {
+        console.log(`Relaying ICE candidate from ${socket.id} to ${to}`);
+        io.to(to).emit("webrtcCandidate", { 
+            candidate, 
+            from: socket.id 
+        });
+    });
+
+
 });
 
 
 httpServer.listen(port, () => {
     console.log(`HTTP + Socket.IO server running on port ${port}`);
-});
+});    
