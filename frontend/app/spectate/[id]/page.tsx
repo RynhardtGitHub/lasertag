@@ -238,7 +238,7 @@ export default function SpectatePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-      <div className="max-w-md mx-auto pt-4">
+      <div className="max-w mx-auto pt-4">
         {/* Header */}
         <Card className="mb-6 bg-black/20 border-gray-700">
           <CardHeader>
@@ -263,54 +263,6 @@ export default function SpectatePage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Video grid */}
-        {Object.entries(playerStreams).map(([playerId, stream]) => {
-          const player = players.find(p => p.id === playerId)
-          return (
-            <div key={playerId} className="relative">
-              <video 
-                ref={el => {
-                  videoRefs.current[playerId] = el
-                  if (el && stream) {
-                    el.srcObject = stream
-                    el.muted = true
-                    el.playsInline = true
-                    el.autoplay = true
-                    
-                    // Add these important attributes and error handling
-                    el.controls = false
-                    el.style.backgroundColor = '#1f2937' // gray-800 for debugging
-                    
-                    // Force play with better error handling
-                    // const playPromise = el.play()
-                    // if (playPromise !== undefined) {
-                    //   playPromise
-                    //     .then(() => {
-                    //       console.log(`✅ Video playing for ${playerId}`)
-                    //     })
-                    //     .catch(err => {
-                    //       console.error(`❌ Video play failed for ${playerId}:`, err)
-                    //       // Try to play again after a short delay
-                    //       setTimeout(() => {
-                    //         el.play().catch(e => console.error('Retry play failed:', e))
-                    //       }, 1000)
-                    //     })
-                    // }
-                  }
-                }}
-                className="w-full aspect-video rounded-md bg-gray-900 border-2 border-gray-600"
-                onLoadedMetadata={() => console.log(`📹 Video metadata loaded for ${playerId}`)}
-                onError={(e) => console.error(`🚫 Video error for ${playerId}:`, e)}
-              />
-              {player && (
-                <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs px-2 py-1 rounded">
-                  {player.name} - {stream.getVideoTracks().length} tracks
-                </div>
-              )}
-            </div>
-          )
-        })}
 
         {/* Leaderboard */}
         <Card className="mb-6 bg-black/20 border-gray-700">
@@ -360,6 +312,67 @@ export default function SpectatePage() {
             </div>
           </CardContent>
         </Card>
+
+        {Object.keys(playerStreams).length > 0 && (
+          <Card className="mt-6 bg-black/20 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white">Player Streams</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {Object.entries(playerStreams).map(([playerId, stream]) => {
+                  const player = players.find(p => p.id === playerId);
+                  return (
+                    <div key={playerId} className="relative">
+                      <video 
+                        ref={el => {
+                          videoRefs.current[playerId] = el
+                          if (el && stream) {
+                            el.srcObject = stream
+                            el.muted = true
+                            el.playsInline = true
+                            el.autoplay = true
+                            
+                            // Add these important attributes and error handling
+                            el.controls = false
+                            el.style.backgroundColor = '#1f2937' // gray-800 for debugging
+                            
+                            // Force play with better error handling
+                            // const playPromise = el.play()
+                            // if (playPromise !== undefined) {
+                            //   playPromise
+                            //     .then(() => {
+                            //       console.log(`✅ Video playing for ${playerId}`)
+                            //     })
+                            //     .catch(err => {
+                            //       console.error(`❌ Video play failed for ${playerId}:`, err)
+                            //       // Try to play again after a short delay
+                            //       setTimeout(() => {
+                            //         el.play().catch(e => console.error('Retry play failed:', e))
+                            //       }, 1000)
+                            //     })
+                            // }
+                          }
+                        }}
+                        className="w-full aspect-video rounded-md bg-gray-900 border-2 border-gray-600"
+                        onLoadedMetadata={() => console.log(`📹 Video metadata loaded for ${playerId}`)}
+                        onError={(e) => console.error(`🚫 Video error for ${playerId}:`, e)}
+                      />
+                      {player && (
+                        <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                          {player.name}
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                        {stream.getVideoTracks().length > 0 ? '📹' : '❌'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Debug */}
         <div className="mt-6 text-center text-gray-400 text-sm">
