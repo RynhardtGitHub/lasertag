@@ -270,6 +270,8 @@
       webSocket.on("updateRoom", handleUpdateRoom);
       webSocket.on('endSession', () => router.push(`/results/${gameId}`));
       webSocket.on('updateTimer', (timerVal) => {
+        setGameTime(timerVal);
+      });
       webSocket.on("updateRoom", handleUpdateRoom);
       webSocket.on('endSession', () => router.push(`/results/${gameId}`));
       webSocket.on('updateTimer', (timerVal) => {
