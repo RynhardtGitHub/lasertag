@@ -1,21 +1,48 @@
 "use client"
 
-import { useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/store"
 import { Eye, Heart, Zap, Clock, Users } from "lucide-react"
+import { getWebSocket } from "@/lib/websocket"
 
 export default function SpectatePage() {
   const params = useParams()
   const gameId = params.id as string
+  const router = useRouter();
+  const webSocket = getWebSocket();
 
-  const { players, gameTime, setGameId } = useGameStore()
+  const { players, gameTime, setGameId, setGameTime } = useGameStore();
 
   useEffect(() => {
     setGameId(gameId)
   }, [gameId, setGameId])
+
+  // Game timer setup
+  const [timerId, setTimerId] = useState<number | null>(null)
+
+  webSocket.on('readyUp', () => {
+    let gt = gameTime;
+    // initialize the time
+    setGameTime(Math.max(0, gameTime))
+  
+    // clear any existing timer (safety)
+    if (timerId) clearInterval(timerId)
+  
+    // start a brand-new timer
+    const id = window.setInterval(() => {
+      setGameTime(gt = Math.max(0, gt - 1))
+    }, 1000)
+    setTimerId(id)
+  })
+  
+  useEffect(() => {
+    if (gameTime === 0) {
+      router.push(`/results/${gameId}`)
+    }
+  }, [gameTime, gameId, router])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
