@@ -34,10 +34,15 @@ interface ClientToServerEvents {
   endGame : (gameID:string)=>void;
 
   //game logic
-  triggerEvent:(data:{gameID:string,eventType:number,eventData:GameEventData})=>void
-
+  triggerEvent:(data:{gameID:string,eventType:number,eventData: {
+    shooterId: string;
+    targetId: string;
+  };})=>void;
   //disconnect
   erasePlayer:(data:{playerId: string})=>void;
+
+  //feature
+  misc: (currPlayerId: string) => void;
 }
 
 

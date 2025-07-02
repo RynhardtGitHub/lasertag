@@ -6,28 +6,26 @@
   import { Card, CardContent } from "@/components/ui/card"
   import { Badge } from "@/components/ui/badge"
   import { useGameStore } from "@/lib/store"
-  import "@tensorflow/tfjs-backend-webgl"; // Ensure WebGL backend is used for TensorFlow.js
-  import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
+  import { Zap, Heart, Users, Clock } from "lucide-react"
   import Tesseract from "tesseract.js";
   import { getWebSocket } from "@/lib/websocket"
-  import * as tf from "@tensorflow/tfjs";
-  import { detectImage } from "./utils/detect";
+  //import {laser_Sound} from "@/public/sound/laser_Sound.mp3"
 
   export default function GamePage() {
+    const websocket = getWebSocket();
     const params = useParams()
     const router = useRouter()
     const gameId = params.id as string
-    const webSocket = getWebSocket();  
+    const webSocket = getWebSocket();   
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [cameraActive, setCameraActive] = useState(false)
-    const [roomPlayers, setRoomPlayers] = useState<typeof players>([]);
-
     const [detectedColor, setDetectedColor] = useState<string | null>(null)
     const [lastAction, setLastAction] = useState<string>("")
 
     //const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+
     const players = useGameStore((state) => state.players);
     const currentPlayer = useGameStore((state) => state.currentPlayer);
     const setPlayers = useGameStore((state) => state.setPlayers);
@@ -37,165 +35,31 @@
     const shieldPlayer = useGameStore((state) => state.shieldPlayer);
     const gameTime = useGameStore((state) => state.gameTime);
 
-    //YOLO START
-    const [loading, setLoading] = useState({ loading: true, progress: 0 }); // loading state
-    
-    const [net,setNet]= useState<tf.GraphModel | null>(null); // YOLO model state
-    const [inputShape,setInputShape] = useState<any>(null) // YOLO model state
-    const [modelReady, setModelReady] = useState(false);
-
-    // references
-    const imageRef = useRef(null);
-    const cameraRef = useRef(null);
-    //YOLO END
-
-    // model configs
-    const modelName = "yolov5n";
-    const classThreshold = 0.5;
-    
     function sleep(ms: number | undefined) {
       return new Promise(resolve => setTimeout(resolve, ms));
     }
-
-    const audioCtx = useRef(new (window.AudioContext || window.webkitAudioContext)());
-
-    const loadAndPlaySound = async (url = "/sounds/pew.mp3") => {
-      try {
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await audioCtx.current.decodeAudioData(arrayBuffer);
-
-        const source = audioCtx.current.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioCtx.current.destination);
-        source.start(0);
-      } catch (err) {
-        console.error("Failed to play sound:", err);
-      }
-    };
 
     /*
     detectColor is also performing OCR
     */
     async function scanUser() {
-      await loadAndPlaySound(); // Play sound on click
-
-      console.log(net, inputShape, cameraActive, videoRef.current, canvasRef.current)
-      if (!cameraActive || !videoRef.current || !canvasRef.current || net == null) return
-
-      // Pass the callback function to handle detected players
-      detectImage(
-        videoRef.current, 
-        net, 
-        inputShape, 
-        classThreshold, 
-        canvasRef.current,
-        handlePlayerDetected // New callback function
-      );
-      
-      // You can still call detectColor if you want to keep the color detection
-      // await detectColor();
-  }
-  const handlePlayerDetected = async (playerId:string, detectedColor=null) => {
-  console.log("Player ID detected:", playerId);
-
-  if (!currentPlayer) return;
-
-  console.log("Player detected in bounding box:", playerId);
-  console.log("Detected color:", detectedColor);
-
-  const now = Date.now();
-  const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
-
-  // Prevent spam (1 second cooldown)
-  if (now - lastActionTime < 1000) return;
-
-  localStorage.setItem("lastActionTime", now.toString());
-
-  setLastAction(`Targeting ${playerId}...`);
-  
-  try {
-    const matchedPlayer = roomPlayers.find(
-      (player) => player.shootId.toLowerCase() === playerId.toLowerCase()
-    );
-
-    console.log("Matched player:", matchedPlayer);
-    console.log("Room players:", roomPlayers);
-
-    if (matchedPlayer) {
-      console.log("Target acquired:", matchedPlayer.name);
-
-      // Emit the shoot event
-      webSocket.emit("triggerEvent", {
-        gameID: `${gameId}`,
-        eventType: 0,
-        eventData: {
-          shooterId: currentPlayer.id,
-          targetId: matchedPlayer.id,
-          shootId: playerId,
-        }
-      });
-
-      console.log("Shoot event triggered for", matchedPlayer.name);
-      setLastAction(`Shot ${matchedPlayer.name}!`);
-    } else {
-      setLastAction("Missed! No player found.");
+      await detectColor();
     }
-  } catch (err) {
-    console.error("Failed to process player detection:", err);
-  }
-
-  setTimeout(() => setLastAction(""), 2000);
-};
-
-    useEffect(() => {
-        tf.ready().then(async () => {
-          const yolov5 = await tf.loadGraphModel(
-            `/${modelName}_web_model/model.json`,
-            {
-              onProgress: (fractions) => {
-                setLoading({ loading: true, progress: fractions }); // set loading fractions
-              },
-            }
-          ); // load model
     
-          // warming up model
-          // const dummyInput = tf.ones(yolov5.inputs[0].shape);
-          // const warmupResult = await yolov5.executeAsync(dummyInput);
-          // tf.dispose(warmupResult); // cleanup memory
-          // tf.dispose(dummyInput); // cleanup memory
-    
-          setLoading({ loading: false, progress: 1 });
-          setNet(yolov5); // set model to state
+    // Game timer
+    /*useEffect(() => {
+      const timer = setInterval(() => {
+        setGameTime(Math.max(0, gameTime - 1))
+      }, 1000)
 
-          // set input shape
-          setInputShape(yolov5.inputs[0].shape); // get input shape
-          setModelReady(true); // ✅ model is ready
-        });
-      }, []);
+      if (gameTime === 0) {
+        router.push(`/results/${gameId}`)
+      }
 
-    
-    useEffect(() => {
-      console.log("modelYOLO:", inputShape);
-      console.log("modelYOLO:", net);
-    }, [net, inputShape]);
+      return () => clearInterval(timer)
+    }, [gameTime, gameId, router, setGameTime])*/
 
-    useEffect(() => {
-      webSocket.emit("getRoomInfo", gameId);
-
-      const handleUpdateRoom = (playersFromServer: typeof players) => {
-        useGameStore.getState().setPlayers(playersFromServer);
-        setRoomPlayers(playersFromServer);
-      };
-
-      webSocket.on("updateRoom", handleUpdateRoom);
-
-      return () => {
-        webSocket.off("updateRoom", handleUpdateRoom); // clean up listener
-      };
-    }, [webSocket, gameId]);
-    
-        // 1-second countdown timer
+    // 1-second countdown timer
 useEffect(() => {
   const timer = setInterval(() => {
     setGameTime(Math.max(0, gameTime - 1));
@@ -208,6 +72,7 @@ useEffect(() => {
   return () => clearInterval(timer);
 }, [gameTime, gameId, router, setGameTime]);
 
+// 30-second heal timer, starts only after 30 seconds (no immediate run)
 useEffect(() => {
   const interval = setInterval(() => {
     if (currentPlayer) {
@@ -215,13 +80,11 @@ useEffect(() => {
       console.log("30s");
       webSocket.emit("misc", currentPlayer.id);
 
-      webSocket.on("updateRoom", (updatedPlayers) => {
+      websocket.on("updateRoom", (updatedPlayers) => {
           useGameStore.getState().setPlayers(updatedPlayers);
           console.log("Updated players:", updatedPlayers)
           });
-      setLastAction("You gained passive regen!");
-
-      setTimeout(() => setLastAction(""), 2000)
+      //setLastAction("You gained passive regen!");
     }
   }, 30000);
 
@@ -237,7 +100,7 @@ useEffect(() => {
             video: {
               facingMode: "environment",
               width: { ideal: 1280 },
-              height: { ideal: 720 }
+              height: { ideal: 720 },
             },
           })
 
@@ -252,7 +115,7 @@ useEffect(() => {
 
       startCamera();
 
-      if (cameraActive && videoRef.current && canvasRef.current && modelReady) {
+      if (cameraActive && videoRef.current && canvasRef.current) {
         console.log("Camera, videoRef, and canvasRef are ready. Attaching click listener.")
         window.addEventListener('mousedown', scanUser);
       } else {
@@ -273,72 +136,123 @@ useEffect(() => {
         window.removeEventListener('mousedown', scanUser);
         console.log("Cleaning up camera and click listener.");
       }
-    }, [cameraActive, videoRef, canvasRef,modelReady])
-
+    }, [cameraActive, videoRef, canvasRef])
+//typeof players
     useEffect(() => {
-      const handleUpdateRoom = (playersFromServer : typeof players)=>{
-        useGameStore.getState().setPlayers(playersFromServer);
+    const handleUpdateRoom = (playersFromServer: typeof players) => {
+    setPlayers(playersFromServer);
+
+    // Also re-sync currentPlayer
+    const current = useGameStore.getState().currentPlayer;
+    if (current) {
+      const updatedCurrent = playersFromServer.find(p => p.shootId === current.shootId);
+      if (updatedCurrent) {
+        useGameStore.getState().setCurrentPlayer(updatedCurrent);
+      }
+    }
+  };
+
+  websocket.on("updateRoom", handleUpdateRoom);
+
+  return () => {
+    websocket.off("updateRoom", handleUpdateRoom);
+  };
+}, [setPlayers]);
+
+
+    async function detectColor() {
+      if (!cameraActive || !videoRef.current || !canvasRef.current) return
+
+      console.log('Clicked')
+
+      const video = videoRef.current!
+      const canvas = canvasRef.current!
+      const ctx = canvas.getContext("2d")!
+
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+
+      ctx.drawImage(video, 0, 0)
+
+      // Sample center area of the image
+      const centerX = canvas.width / 2
+      const centerY = canvas.height / 2
+      const sampleSize = 150
+
+      const imageData = ctx.getImageData(
+        centerX - sampleSize / 2,
+        centerY - sampleSize / 2,
+        sampleSize,
+        sampleSize
+      )
+
+      const ocrCanvas = document.createElement("canvas")
+      ocrCanvas.width = sampleSize
+      ocrCanvas.height = sampleSize
+      ocrCanvas.getContext("2d")!.putImageData(imageData, 0, 0)
+
+      let r = 0,
+        g = 0,
+        b = 0
+      const pixels = imageData.data.length / 4
+
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        r += imageData.data[i]
+        g += imageData.data[i + 1]
+        b += imageData.data[i + 2]
       }
 
-      webSocket.on("updateRoom", handleUpdateRoom);
-    },[]);
+      r = Math.floor(r / pixels)
+      g = Math.floor(g / pixels)
+      b = Math.floor(b / pixels)
 
-    // 3. Update your detectColor function to work with the new system:
-async function detectColor() {
-  if (!cameraActive || !videoRef.current || !canvasRef.current) return
+      // Detect dominant color
+      const threshold = 50
+      if (r > g + threshold && r > b + threshold) {
+        setDetectedColor("red")
+        handleColorAction("red")
+      } else if (g > r + threshold && g > b + threshold) {
+        setDetectedColor("green")
+        handleColorAction("green")
+      } else if (b > r + threshold && b > g + threshold) {
+        setDetectedColor("blue")
+        handleColorAction("blue")
+      } else {
+        setDetectedColor(null)
+      }
 
-  console.log('Color detection clicked')
+      // OCR: Detect numbers
+      try {
+        console.log('OCR:')
+        const {
+          data: { text },
+        } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "ABPURM0123456789" },})
 
-  const video = videoRef.current!
-  const canvas = canvasRef.current!
-  const ctx = canvas.getContext("2d")!
+        console.log(`Tesseract text: ${text}`)
+        const detectedNumber = text.trim()
+        if (detectedNumber) {
+          
+          const matchedDigits = detectedNumber.match(/[ABPURM0-9]+/gi) // returns array of digit sequences
 
-  // Sample center area of the image for color detection
-  const centerX = canvas.width / 2
-  const centerY = canvas.height / 2
-  const sampleSize = 150
+          if (matchedDigits && matchedDigits.length > 0) {
+            const number = matchedDigits[0] // pick first sequence
+            console.log("Detected number:", number)
 
-  const imageData = ctx.getImageData(
-    centerX - sampleSize / 2,
-    centerY - sampleSize / 2,
-    sampleSize,
-    sampleSize
-  )
-
-  let r = 0, g = 0, b = 0
-  const pixels = imageData.data.length / 4
-
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    r += imageData.data[i]
-    g += imageData.data[i + 1]
-    b += imageData.data[i + 2]
-  }
-
-  r = Math.floor(r / pixels)
-  g = Math.floor(g / pixels)
-  b = Math.floor(b / pixels)
-
-  // Detect dominant color and trigger actions
-  const threshold = 50
-  if (r > g + threshold && r > b + threshold) {
-    setDetectedColor("red")
-    handleColorAction("red")
-  } else if (g > r + threshold && g > b + threshold) {
-    setDetectedColor("green")
-    handleColorAction("green")
-  } else if (b > r + threshold && b > g + threshold) {
-    setDetectedColor("blue")
-    handleColorAction("blue")
-  } else {
-    setDetectedColor(null)
-  }
-}
-
+            // Optional: only accept 1–4 digit numbers
+            if (number.length >= 1 && number.length <= 2) {
+              handleNumberAction(number)
+            }
+          } else {
+            console.log("No valid number detected.")
+          }
+        }
+      } catch (error) {
+        console.error("OCR error:", error)
+      }
+    }
 
     const handleNumberAction = async (detectedNumber: string) => {
       if (!currentPlayer) return
-
-      console.log("Handling number action for:", detectedNumber)
 
       const now = Date.now()
       const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
@@ -349,38 +263,51 @@ async function detectColor() {
       localStorage.setItem("lastActionTime", now.toString())
 
       setLastAction(`${detectedNumber}`)
-      
       try {
+        const response = await new Promise<{ success?: boolean, activePlayers?: any[], error?: string }>((resolve, reject) => {
+          websocket.emit("getRoomInfo", gameId, (res) => {
+            if (res?.error) return reject(res.error);
+            resolve(res);
+          });
+        });
+
+        console.log("Room data:", response.activePlayers);
+
+        const roomPlayers = response.activePlayers || [];
+
+        // Look for a player with matching shootId
         const matchedPlayer = roomPlayers.find(
           (player) => player.shootId.toLowerCase() === detectedNumber.toLowerCase()
         );
 
-        console.log("Matched player:", matchedPlayer)
-        console.log(roomPlayers)
-
         if (matchedPlayer) {
-          console.log("Target acquired:", matchedPlayer.name);
+          //Checking for debugging purposes
+          //console.log("Target acquired:", matchedPlayer.name);
+          //console.log(matchedPlayer.shootId);
+          //console.log(currentPlayer.shootId);
 
-          webSocket.emit("triggerEvent", {
+          websocket.emit("triggerEvent", {
             gameID: `${gameId}`,
             eventType: 0,
             eventData: {
-              shooterId: currentPlayer.id,
-              targetId: matchedPlayer.id,
-              shootId: detectedNumber,
-            }}
+              shooterId: currentPlayer.shootId,
+              targetId: matchedPlayer.shootId
+            }},
+            
           );
-
-          console.log("Shoot event triggered for", matchedPlayer.name);
-
+          
           setLastAction(`Shot ${matchedPlayer.name}!`);
+
+          // <- This updates your local UI/state
+          websocket.on("updateRoom", (updatedPlayers) => {
+          useGameStore.getState().setPlayers(updatedPlayers);
+          console.log("Updated players:", updatedPlayers)
+          });
+         
         } else {
           // console.log("No matching shoot ID found for", detectedNumber);
           setLastAction("Missed! No player found.");
         }
-
-        // websocket.emit("shootPlayer", detectedNumber);
-
       } catch (err) {
         console.error("Failed to get room info:", err);
       }
@@ -389,6 +316,9 @@ async function detectColor() {
       setTimeout(() => setLastAction(""), 2000)
     }
 
+    /*function PlayLaser(){
+      new Audio(laser_Sound).play()
+    }*/
     const handleColorAction = (color: string) => {
       if (!currentPlayer) return
 
@@ -450,9 +380,8 @@ async function detectColor() {
       <div className="min-h-screen bg-black relative overflow-hidden">
         {/* Camera View */}
         <div className="absolute inset-0">
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+          <canvas ref={canvasRef} className="hidden" />
 
           {/* Crosshair */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -542,13 +471,17 @@ async function detectColor() {
           )}
 
           {/* Weapon Info */}
-          <div className={`absolute ${currentPlayer.isHost ? 'bottom-20' : 'bottom-4'} left-4 right-4`}>
+          <div className="absolute bottom-20 left-4 right-4">
             <Card className="bg-black/70 border-gray-600">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between text-white text-sm">
                   <div className="flex items-center gap-2">
                     <Zap className="w-4 h-4" />
                     <span>{currentPlayer.weapon}</span>
+                    <audio id="shootAudio" preload="auto">
+                    <source src="/sounds/shoot.mp3" type="audio/mpeg" />
+                    Your browser does not support the audio element.
+                  </audio>
                   </div>
                   <div className="flex gap-1">
                     <Badge variant="outline" className="text-red-400 border-red-400 text-xs">
@@ -567,13 +500,11 @@ async function detectColor() {
           </div>
 
           {/* Exit Button */}
-          {currentPlayer.isHost && (
-            <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-              <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
-                End Game
-              </Button>
-            </div>
-          )}
+          <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
+            <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
+              End Game
+            </Button>
+          </div>
         </div>
       </div>
     )

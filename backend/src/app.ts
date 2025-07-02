@@ -5,6 +5,7 @@ import cors from "cors";
 import { makeid } from "./misc";
 import { createPlayer } from "./misc";
 import { Player } from "./types";
+import {Arsenal} from "./misc";
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -15,6 +16,7 @@ let roomsPlayers: { [key: string]: Array<Player> } = {}
 let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
 
 let assignedPlayerIds: Array<string> = [];
+let currentRoomID: string | null = null;
 
 app.use(cors());
 app.use(express.json());
@@ -208,12 +210,54 @@ io.on("connection", (socket) => {
      * 2 => ...
      */
     socket.on("triggerEvent",(data)=>{
-        if (data.eventType<0){
+        if (data.eventType<0 || !currentRoomID){
             return;
         }
         switch (data.eventType) {
             case 0: // shoot event
-                console.log("shoot him")
+                console.log("shoot him");
+  
+                //finds shot player to adjust health
+                const targetId = data.eventData.targetId; // assuming array or key
+                console.log(data.eventData.targetId);
+
+                const shotPlayer = roomsPlayers[currentRoomID]?.find(
+                    (player) => player.shootId === targetId
+                );
+                console.log(shotPlayer?.name + "!!!!");
+
+                const shooterId = data.eventData.shooterId;
+                const shooter = roomsPlayers[currentRoomID]?.find(
+                    (player) => player.shootId === shooterId
+                );
+                console.log(shooter?.health)
+
+                //search for damage COMING SOON
+                //let damage = shooter?.weapon.damage;
+
+
+                if(shotPlayer && shooter){
+                    const damage = shooter?.weapon[1];
+                    const damageNum = Number(damage);
+
+                    if(shotPlayer.health > damageNum){ //just a shot
+                        shotPlayer.health = shotPlayer.health - damageNum;
+                    }
+                    else{ //player dies
+                        shotPlayer.health = 0;
+                        shotPlayer.isAlive = false; 
+                        shooter.score += 1;
+                        console.log(`${shooter.name} killed ${shotPlayer.name}`);
+                    }
+                    
+
+                    shooter.score += 1;
+                }      
+                else{
+                    console.log("Bad shot");
+                }  
+                console.log(shooter?.health)    
+
                 break;
 
             case 1: // heal event
@@ -222,37 +266,8 @@ io.on("connection", (socket) => {
             default:
                 break;
         }
-
-        if (data.eventType==0){
-            roomsPlayers[data.gameID].forEach((player) => {
-                if (data.eventData.targetId === undefined)
-
-                if (player.id === data.eventData.targetId) {
-                    player.health -= 10; // Example damage
-                    
-                    /**
-                     * 
-                        shooterId: currentPlayer.id,
-                        targetId: matchedPlayer.id,
-                        shootId: detectedNumber,
-                     */
-                    console.log(`Player ${player.name} shot! Health: ${player.health}`);
-                }
-            });
-
-             let object = {
-                players: roomsPlayers[data.gameID],
-                eventType: data.eventType
-            };
-
-            io.to(data.gameID).emit("sendGameState", {gameID: data.gameID, gameData: object});
-            console.log("SHOOT EVENT");
-
-        }else if (data.eventType==1){
-            console.log("HEAL EVENT"); 
-        }else{
-            console.log("INVALID EVENT");
-        }
+        console.log(roomsPlayers[currentRoomID])
+        io.to(currentRoomID).emit("updateRoom", roomsPlayers[currentRoomID]);
     })
 
     socket.on("startGame", (gameID)=>{
@@ -269,6 +284,44 @@ io.on("connection", (socket) => {
     //     console.log(roomsPlayers)
     //     console.log(assignedPlayerIds)
     // })
+
+     socket.on("misc", (currPlayerId)=>{
+        //ranodm number 
+        const randomNumber = Math.floor(Math.random() * 2) + 1;
+
+        //case statment to determine which power up
+        switch(randomNumber) {
+            case 1:     //increased health
+                if (currentRoomID){
+                    let shooter = roomsPlayers[currentRoomID]?.find(
+                        (player) => player.id === currPlayerId
+                    );
+                    
+                    if (shooter){
+                        shooter.health = 100;
+                        console.log("H " + shooter.health);
+                    }
+                    
+                }
+            case 2:
+                case 1:     //weapon change
+                if (currentRoomID){
+                    let shooter = roomsPlayers[currentRoomID]?.find(
+                        (player) => player.id === currPlayerId
+                    );
+                    
+                    if (shooter){
+                        shooter.weapon = Arsenal[Math.floor(Math.random() * 3) + 0];
+                        console.log("W " + shooter.weapon);
+                    }
+                    
+                }    
+        }
+        if(currentRoomID)
+        {
+            io.to(currentRoomID).emit("updateRoom", roomsPlayers[currentRoomID]);
+        }
+    })
 });
 
 
