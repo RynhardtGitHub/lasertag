@@ -4,7 +4,7 @@ import { io, Socket } from "socket.io-client";
 
 export class WebSocketClient {
   private socket: Socket;
-  private id="";
+  public id="";
 
   constructor() {
     //TODO CHANGE THE URL for server socket

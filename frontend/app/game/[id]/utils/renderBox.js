@@ -91,7 +91,7 @@ export const renderBoxes = async (
 
   if (videoSource && videoSource.videoWidth > 0 && targetLocked) {
       try {
-          const centerColor = getCenterColor(videoSource, 20);
+          const centerColor = getCenterColor(videoSource, 10);
           onPlayerDetected(centerColor)
           
           //TODO REMOVE THIS

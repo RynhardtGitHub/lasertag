@@ -93,37 +93,53 @@
     /*
     detectColor is also performing OCR
     */
-    async function scanUser() {
-  await loadAndPlaySound(); // Play sound on click
+  async function scanUser() {
+    await loadAndPlaySound(); // Play sound on click
 
-  if (!cameraActive || !videoRef.current || !canvasRef.current || net == null) {
-    console.log("Scan user - missing requirements:", {
-      cameraActive,
-      videoRef: !!videoRef.current,
-      canvasRef: !!canvasRef.current,
-      net: !!net
-    });
-    return;
+    if (!cameraActive || !videoRef.current || !canvasRef.current || net == null) {
+      console.log("Scan user - missing requirements:", {
+        cameraActive,
+        videoRef: !!videoRef.current,
+        canvasRef: !!canvasRef.current,
+        net: !!net
+      });
+      return;
+    }
+
+    // Check if video is ready
+    if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+      console.log("Video not ready for OCR");
+      return;
+    }
+
+    console.log("Starting detection with OCR...");
+    
+    // Pass the callback function to handle detected players
+    detectImage(
+      videoRef.current, 
+      net, 
+      inputShape, 
+      classThreshold, 
+      canvasRef.current,
+      handlePlayerDetected // New callback function
+    );
   }
 
-  // Check if video is ready
-  if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
-    console.log("Video not ready for OCR");
-    return;
-  }
+  useEffect(() => {
+    websocket.emit("getRoomInfo",gameId);
 
-  console.log("Starting detection with OCR...");
-  
-  // Pass the callback function to handle detected players
-  detectImage(
-    videoRef.current, 
-    net, 
-    inputShape, 
-    classThreshold, 
-    canvasRef.current,
-    handlePlayerDetected // New callback function
-  );
-}
+    const handleUpdateRoom = (playersFromServer : typeof players)=>{
+      useGameStore.getState().setPlayers(playersFromServer);
+      setRoomPlayers(playersFromServer);
+    }
+
+    websocket.on("updateRoom", handleUpdateRoom);
+
+     return () => {
+        websocket.off("updateRoom", handleUpdateRoom);
+      };
+  }, [gameId])
+
 
 useEffect(() => {
   if (videoRef.current && canvasRef.current && cameraActive) {
@@ -167,6 +183,7 @@ useEffect(() => {
       let detectedColorHex =  rgbToHex(detectedColor.r, detectedColor.g, detectedColor.b);
 
       // let closestColour = findClosestColor(detectedColorHex,roomColours);
+      console.log("Detected color in hex:", detectedColorHex, "Room colors:", roomColours);
       let closestColour = getClosestColor(detectedColor,roomRGB);
       
       if (!closestColour) {
