@@ -228,7 +228,6 @@ io.on("connection", (socket) => {
         roomIntervals[gameID] = setInterval(() => {
             if (roomTimers[gameID] > 0) {
               roomTimers[gameID]--;
-              console.log(`Room ${gameID} timer: ${roomTimers[gameID]}`);
         
               // Optionally: emit updated time to clients
               io.to(gameID).emit("updateTimer", roomTimers[gameID]);
