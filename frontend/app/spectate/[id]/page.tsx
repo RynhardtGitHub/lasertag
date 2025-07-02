@@ -14,7 +14,7 @@ export default function SpectatePage() {
   const router = useRouter();
   const webSocket = getWebSocket();
 
-  const { players, gameTime, setGameId, setGameTime } = useGameStore();
+  const { players, gameTime, setPlayers, setGameId, setGameTime } = useGameStore();
 
   useEffect(() => {
     setGameId(gameId)
@@ -22,6 +22,31 @@ export default function SpectatePage() {
 
   // Game timer setup
   const [timerId, setTimerId] = useState<number | null>(null)
+
+  // Fetch data every two seconds
+  useEffect(() => {
+    // guard: don’t start polling until we know our gameId
+    if (!gameId) return
+
+    const interval = setInterval(() => {
+      webSocket.emit(
+        'getRoomInfo',
+        gameId,
+        (res: { success?: boolean; activePlayers?: any[]; error?: string }) => {
+          if (res.error) {
+            console.error('Failed to fetch room info:', res.error)
+            return
+          }
+          if (res.success && Array.isArray(res.activePlayers)) {
+            // shove the live list of players into your store
+            setPlayers(res.activePlayers)
+          }
+        }
+      )
+    }, 2_000)
+
+    return () => clearInterval(interval)
+  }, [gameId, webSocket, setPlayers])
 
   webSocket.on('readyUp', () => {
     let gt = gameTime;
