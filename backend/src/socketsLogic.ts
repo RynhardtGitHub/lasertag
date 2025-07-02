@@ -34,11 +34,7 @@ interface ClientToServerEvents {
 
   //start/end game logic
   startGame: (gameID:string)=>void;
-  readyInGame: (data:{ gameID: string; playerID: string})=>void;
-  // endGame : (gameID:string)=>void;
-
-  //end game logic
-  endGame: (gameId: string)=>void;
+  endGame : (gameID:string)=>void;
 
   //game logic
   triggerEvent:(data:{gameID:string,eventType:number,eventData:GameEventData})=>void

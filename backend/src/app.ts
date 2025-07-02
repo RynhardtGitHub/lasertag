@@ -85,7 +85,7 @@ io.on("connection", (socket) => {
 
     socket.on("create",(playerName)=>{
         let playerId = makeid(1,numberWhitelist);
-        playerId += makeid(1,letterWhitelist);
+        // playerId += makeid(1,letterWhitelist);
         //TODO CHANGE BACK
 
         // playerId = "1"
@@ -154,7 +154,7 @@ io.on("connection", (socket) => {
             const idExists = (id: string) => players.some(p => p.shootId === id);
             let playerId;
             do {
-                playerId = makeid(1, numberWhitelist) + makeid(1, letterWhitelist);
+                playerId = makeid(1, numberWhitelist);
             } while (idExists(playerId));
 
             const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
