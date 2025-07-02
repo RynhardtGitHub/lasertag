@@ -74,10 +74,6 @@ export default function LobbyPage() {
       }
   }
 
-  // useEffect(() => {
-  //   websocket.emit('getRoomInfo',gameId);
-  // }, [players]);
-
   const canStart = isHost && players.length >= 1;
 
   return (

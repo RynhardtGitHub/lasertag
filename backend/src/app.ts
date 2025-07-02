@@ -132,10 +132,11 @@ io.on("connection", (socket) => {
 
         if (!playerExists) {
             const players = roomsPlayers[data.gameID];
-            if (players.length >= numberWhitelist.length * letterWhitelist.length){ // Add player as spectator if no space
+            if (players.length >= numberWhitelist.length * letterWhitelist.length){
                 console.warn(`Max players for game ${data.gameID} reached`);
-                const newPlayer = createPlayer(socket.id, data.playerName,'',{ isHost: false, isSpectator: true });
-                roomsPlayers[data.gameID].push(newPlayer);
+                if (typeof callback === "function") {
+                    callback({ success: false, message: "Room is full." });
+                }
                 return;
             }
             const idExists = (id: string) => players.some(p => p.shootId === id);
