@@ -82,15 +82,11 @@ io.on("connection", (socket) => {
 
     let numberWhitelist = '123';
     let letterWhitelist = 'APU';
+    let maxPlayers = 8;
 
-    socket.on("create",(playerName)=>{
-        let playerId = makeid(1,numberWhitelist);
-        // playerId += makeid(1,letterWhitelist);
-        //TODO CHANGE BACK
-
-        // playerId = "1"
-        let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
-        console.log(`Created player with id: ${playerId}`)
+    socket.on("create",(data)=>{
+        let newPlayer = createPlayer(socket.id,data.playerName,data.shirtColor,{isHost:true,isSpectator:false});
+        console.log(`Created player with id: ${data.shirtColor}`)
 
         const roomID = makeid(6);
         socket.join(roomID)
@@ -145,22 +141,17 @@ io.on("connection", (socket) => {
         if (!playerExists) {
             const players = roomsPlayers[data.gameID];
             // if (players.length >= numberWhitelist.length * letterWhitelist.length){
-            if (players.length >= numberWhitelist.length){
+            if (players.length >= maxPlayers){
                 console.warn(`Max players for game ${data.gameID} reached`);
                 if (typeof callback === "function") {
                     callback({ success: false, message: "Room is full." });
                 }
                 return;
             }
-            const idExists = (id: string) => players.some(p => p.shootId === id);
-            let playerId;
-            do {
-                playerId = makeid(1, numberWhitelist);
-            } while (idExists(playerId));
 
-            const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
+            const newPlayer = createPlayer(socket.id, data.playerName,data.shirtColor,{ isHost: false, isSpectator: false });
             roomsPlayers[data.gameID].push(newPlayer);
-            console.log(`New player joined with ID: ${playerId}`)
+            console.log(`New player joined with shirtColor: ${data.shirtColor}`)
         }
 
         if (typeof callback === "function") {

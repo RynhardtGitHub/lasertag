@@ -27,8 +27,8 @@ interface ServerToClientEvents {
 interface ClientToServerEvents {
   hello: () => void;
   //room logic
-  create: (playerName:string) => void;
-  join : (data:{ gameID: string; playerName: string},callback:(res:JoinRoomResponse)=>void)=>void;
+  create: (data:{playerName:string, shirtColor: string}) => void;
+  join : (data:{ gameID: string; playerName: string, shirtColor: string},callback:(res:JoinRoomResponse)=>void)=>void;
   getRoomInfo : (roomID:string,  callback?: (response: any) => void)=>void;
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
 
