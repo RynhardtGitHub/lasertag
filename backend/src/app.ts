@@ -296,6 +296,44 @@ io.on("connection", (socket) => {
     //     console.log(roomsPlayers)
     //     console.log(assignedPlayerIds)
     // })
+
+    //  socket.on("misc", (currPlayerId)=>{
+    //     //ranodm number 
+    //     const randomNumber = Math.floor(Math.random() * 2) + 1;
+
+    //     //case statment to determine which power up
+    //     switch(randomNumber) {
+    //         case 1:     //increased health
+    //             if (currentRoomID){
+    //                 let shooter = roomsPlayers[currentRoomID]?.find(
+    //                     (player) => player.id === currPlayerId
+    //                 );
+                    
+    //                 if (shooter){
+    //                     shooter.health = 100;
+    //                     console.log("H " + shooter.health);
+    //                 }
+                    
+    //             }
+    //         case 2:
+    //             case 1:     //weapon change
+    //             if (currentRoomID){
+    //                 let shooter = roomsPlayers[currentRoomID]?.find(
+    //                     (player) => player.id === currPlayerId
+    //                 );
+                    
+    //                 if (shooter){
+    //                     shooter.weapon = Arsenal[Math.floor(Math.random() * 3) + 0];
+    //                     console.log("W " + shooter.weapon);
+    //                 }
+                    
+    //             }    
+    //     }
+    //     if(currentRoomID)
+    //     {
+    //         io.to(currentRoomID).emit("updateRoom", roomsPlayers[currentRoomID]);
+    //     }
+    // })
 });
 
 
