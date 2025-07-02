@@ -78,23 +78,7 @@ io.on("connection", (socket) => {
         let playerId = makeid(1,numberWhitelist);
         playerId += makeid(1,letterWhitelist);
 
-        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
-            // Max number of players reached
-            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
-            if (assignedPlayerIds.length >= Math.pow(3,2)) {
-                return {
-                    success: false,
-                    error: true,
-                    message: 'Maximum number of players reached',
-                }
-            }
-            // playerId = makeid(2,playerIdWhitelist);
-            playerId = makeid(1,numberWhitelist);
-            playerId += makeid(1,letterWhitelist);
-        }
-
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
-        assignedPlayerIds.push(playerId);
         console.log(`Created player with id: ${playerId}`)
 
         const roomID = makeid(6); 
@@ -146,29 +130,21 @@ io.on("connection", (socket) => {
         // let playerIdWhitelist = 'APURM0123456789';
         // let playerId = makeid(2,playerIdWhitelist);
 
-        /* Sus workaround to creating an id with one number and lettter */
-        let playerId = makeid(1,numberWhitelist);
-        playerId += makeid(1,letterWhitelist);
-
-        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
-            // Max number of players reached
-            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
-            if (assignedPlayerIds.length >= Math.pow(3,2)) {
-                return {
-                    success: false,
-                    error: true,
-                    message: 'Maximum number of players reached',
-                }
-            }
-            // playerId = makeid(2,playerIdWhitelist);
-            playerId = makeid(1,numberWhitelist);
-            playerId += makeid(1,letterWhitelist);
-        }
-
-
         if (!playerExists) {
+            const players = roomsPlayers[data.gameID];
+            if (players.length >= numberWhitelist.length * letterWhitelist.length){ // Doesn't add player if no space (have to handle this still)
+                console.warn(`Max players for game ${data.gameID} reached`);
+                return;
+            }
+            const idExists = (id: string) => players.some(p => p.shootId === id);
+            let playerId;
+            do {
+                playerId = makeid(1, numberWhitelist) + makeid(1, letterWhitelist);
+            } while (idExists(playerId));
+
             const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
             roomsPlayers[data.gameID].push(newPlayer);
+            console.log(`New player joined with ID: ${playerId}`)
         }
 
         if (typeof callback === "function") {
