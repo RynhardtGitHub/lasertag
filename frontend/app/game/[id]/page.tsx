@@ -5,7 +5,7 @@
   import { Button } from "@/components/ui/button"
   import { Card, CardContent } from "@/components/ui/card"
   import { Badge } from "@/components/ui/badge"
-  import { useGameStore } from "@/lib/store"
+  import { useGameStore, Player } from "@/lib/store"
   import "@tensorflow/tfjs-backend-webgl"; // Ensure WebGL backend is used for TensorFlow.js
   import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
   import Tesseract from "tesseract.js";
@@ -27,6 +27,7 @@
 
     const [detectedColor, setDetectedColor] = useState<string | null>(null)
     const [lastAction, setLastAction] = useState<string>("")
+    const streamRef = useRef<MediaStream | null>(null);
 
     //const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
     const players = useGameStore((state) => state.players);
@@ -247,10 +248,12 @@ useEffect(() => {
               height: { ideal: 720 }
             },
           })
-
+          
+          streamRef.current = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream
             setCameraActive(true)
+            websocket.emit("playerReadyForStream", { gameId });
           }
         } catch (err) {
           console.error("Error accessing camera:", err)
@@ -281,6 +284,159 @@ useEffect(() => {
         console.log("Cleaning up camera and click listener.");
       }
     }, [cameraActive, videoRef, canvasRef,modelReady])
+
+   useEffect(() => {
+    if (!cameraActive || !streamRef.current || !websocket || !videoRef.current?.srcObject) return;
+
+    const stream = streamRef.current;
+    const peerConnections: { [id: string]: RTCPeerConnection } = {};
+    
+    console.log("Setting up WebRTC for game", gameId);
+    
+    // Tell server this player is ready to stream
+    websocket.emit("playerReadyForStream", { gameId });
+
+    // Handle spectator connection (hyphenated version)
+    // In game.tsx - Fix the spectator connection handling
+    const handleSpectatorConnected = async (spectatorId: string) => {
+      console.log("Spectator connected:", spectatorId);
+
+      const stream = streamRef.current;
+      if (!stream || !stream.getTracks().length) {
+        console.warn("No stream or tracks available at spectator connect");
+        return; // Don't proceed without a valid stream
+      }
+
+      console.log("Stream details:", {
+        id: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+        active: stream.active
+      });
+
+      try {
+        const peer = new RTCPeerConnection({
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" }
+          ],
+        });
+
+        if (!peerConnections[spectatorId]) {
+          peerConnections[spectatorId] = peer;
+        }
+
+        // Add tracks BEFORE creating offer
+        stream.getTracks().forEach(track => {
+          console.log("Adding track to peer connection:", {
+            kind: track.kind,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            id: track.id
+          });
+          peer.addTrack(track, stream);
+        });
+
+        // Handle ICE candidates
+        peer.onicecandidate = (event) => {
+          if (event.candidate) {
+            console.log("Sending ICE candidate to spectator:", spectatorId);
+            websocket.emit("webrtcCandidate", {
+              to: spectatorId,
+              candidate: event.candidate,
+            });
+          }
+        };
+
+        // Monitor connection state
+        peer.onconnectionstatechange = () => {
+          console.log(`Connection state with spectator ${spectatorId}:`, peer.connectionState);
+        };
+
+        peer.oniceconnectionstatechange = () => {
+          console.log(`ICE connection state with spectator ${spectatorId}:`, peer.iceConnectionState);
+        };
+
+        // Create and send offer
+        const offer = await peer.createOffer({
+          offerToReceiveAudio: false, // We're only sending, not receiving
+          offerToReceiveVideo: false
+        });
+        
+        await peer.setLocalDescription(offer);
+        
+        console.log("Sending offer to spectator:", spectatorId, "SDP:", offer.sdp?.substring(0, 100) + "...");
+        
+        websocket.emit("webrtcOffer", {
+          to: spectatorId,
+          from: websocket.id,
+          sdp: offer,
+          gameId,
+        });
+      } catch (err) {
+        console.error("Failed to handle spectator connection:", err);
+      }
+    };
+
+    // Handle request for offer (alternative method)
+    const handleRequestOffer = async ({ spectatorId }: { spectatorId: string }) => {
+      console.log("Offer requested by spectator:", spectatorId);
+      await handleSpectatorConnected(spectatorId);
+    };
+
+    // Handle answer from spectator
+    const handleWebRTCAnswer = async ({ answer, from }: {answer: RTCSessionDescriptionInit; from: string }) => {
+      console.log("Received WebRTC answer from:", from);
+      const peer = peerConnections[from];
+      if (peer) {
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log("Successfully set remote description for spectator:", from);
+        } catch (err) {
+          console.error("Failed to set remote description:", err);
+        }
+      } else {
+        console.warn("No peer connection found for spectator:", from);
+      }
+    };
+
+    // Handle ICE candidates from spectator
+    const handleWebRTCCandidate = async ({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
+      console.log("Received ICE candidate from:", from);
+      const peer = peerConnections[from];
+      if (peer && candidate) {
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log("Successfully added ICE candidate from spectator:", from);
+        } catch (err) {
+          console.error("Failed to add ICE candidate:", err);
+        }
+      }
+    };
+
+    // Register event listeners
+    websocket.on("spectator-connected", handleSpectatorConnected);
+    websocket.on("requestOffer", handleRequestOffer);
+    websocket.on("webrtcAnswer", handleWebRTCAnswer);
+    websocket.on("webrtcCandidate", handleWebRTCCandidate);
+
+    return () => {
+      console.log("Cleaning up game WebRTC connections");
+      
+      // // Close all peer connections
+      Object.values(peerConnections).forEach(pc => {
+        if (pc) {
+          pc.close();
+        }
+      });
+      
+      // Remove event listeners
+      websocket.off("spectator-connected", handleSpectatorConnected);
+      websocket.off("requestOffer", handleRequestOffer);
+      websocket.off("webrtcAnswer", handleWebRTCAnswer);
+      websocket.off("webrtcCandidate", handleWebRTCCandidate);
+    };
+  }, [cameraActive, gameId, websocket]);
 
     useEffect(() => {
       const handleUpdateRoom = (playersFromServer : typeof players)=>{
