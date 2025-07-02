@@ -79,7 +79,9 @@ io.on("connection", (socket) => {
         /* Sus workaround to creating an id with one number and lettter */
         let playerId = makeid(1,numberWhitelist);
         playerId += makeid(1,letterWhitelist);
+        //TODO CHANGE BACK
 
+        // playerId = "1"
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         console.log(`Created player with id: ${playerId}`)
 
