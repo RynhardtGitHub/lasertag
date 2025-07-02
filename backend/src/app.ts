@@ -2,8 +2,7 @@ import express, { Request, Response } from "express";
 import { createServer } from "http";
 import {createNewServer} from "./socketsLogic";
 import cors from "cors";
-import { makeid } from "./misc";
-import { createPlayer } from "./misc";
+import { createPlayer,makeid } from "./misc";
 import { Player } from "./types";
 import { defaultMaxListeners } from "events";
 
@@ -99,6 +98,7 @@ io.on("connection", (socket) => {
         socket.emit("sendRoom", roomID,[]);
     })
 
+
     socket.on("getRoomInfo",(roomID, callback)=>{
         // Assuming that initRoom is only called after rendering the lobby page
         if (roomID==null){
@@ -117,6 +117,7 @@ io.on("connection", (socket) => {
 
         io.to(roomID).emit("updateRoom", activePlayers)
     })
+
 
     socket.on("join",async (data,callback)=>{
         const availRooms = getRooms();

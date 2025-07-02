@@ -10,23 +10,44 @@ import { renderBoxes } from "./renderBox";
  */
 const preprocess = (source, modelWidth, modelHeight) => {
   let xRatio, yRatio; // ratios for boxes
+  
   const input = tf.tidy(() => {
-    const img = tf.browser.fromPixels(source);
-    // padding image to square => [n, m] to [n, n], n > m
-    const [h, w] = img.shape.slice(0, 2); // get source width and height
+    // Handle different source types (canvas, img element, video)
+    let img;
+    if (source instanceof HTMLCanvasElement) {
+      img = tf.browser.fromPixels(source);
+    } else if (source instanceof HTMLImageElement || source instanceof HTMLVideoElement) {
+      img = tf.browser.fromPixels(source);
+    } else {
+      // Already a tensor
+      img = source;
+    }
+    
+    // Get source width and height
+    const [h, w] = img.shape.slice(0, 2);
     const maxSize = Math.max(w, h); // get max size
+    
+    // Create padding configuration for square image
+    const padH = maxSize - h;
+    const padW = maxSize - w;
+    
     const imgPadded = img.pad([
-      [0, maxSize - h], // padding y [bottom only]
-      [0, maxSize - w], // padding x [right only]
-      [0, 0],
+      [0, padH], // padding y [bottom only]
+      [0, padW], // padding x [right only] 
+      [0, 0],    // no padding for channels
     ]);
-    xRatio = maxSize / w; // update xRatio
-    yRatio = maxSize / h; // update yRatio
+    
+    // Calculate ratios for later box coordinate conversion
+    xRatio = maxSize / w;
+    yRatio = maxSize / h;
+    
+    // Resize to model input size and normalize
     return tf.image
-      .resizeBilinear(imgPadded, [modelWidth, modelHeight]) // resize frame
-      .div(255.0) // normalize
-      .expandDims(0); // add batch
+      .resizeBilinear(imgPadded, [modelWidth, modelHeight])
+      .div(255.0) // normalize to [0,1]
+      .expandDims(0); // add batch dimension [1, height, width, channels]
   });
+  
   return [input, xRatio, yRatio];
 };
 
@@ -48,7 +69,14 @@ export const detectImage = async (
   onPlayerDetected = null
 ) => {
   const [modelWidth, modelHeight] = inputShape.slice(1, 3); // get model width and height
-  console.log("Model dimensions:", modelWidth, modelHeight);
+  
+  // Check if video source is ready
+  if (imgSource instanceof HTMLVideoElement) {
+    if (imgSource.videoWidth === 0 || imgSource.videoHeight === 0) {
+      console.log("Video not ready for detection");
+      return;
+    }
+  }
   
   tf.engine().startScope(); // start scoping tf engine
   
@@ -102,19 +130,21 @@ export const detectVideo = (
   const [modelWidth, modelHeight] = inputShape.slice(1, 3); // get model width and height
   
   let isDetecting = false; // Prevent multiple concurrent detections
+  let animationId = null; // Store animation frame ID for cleanup
   
   /**
    * Function to detect every frame from video
    */
   const detectFrame = async () => {
-    if (vidSource.videoWidth === 0 && vidSource.srcObject === null) {
+    // Check if video is still valid and playing
+    if (!vidSource || vidSource.videoWidth === 0 || vidSource.videoHeight === 0) {
       const ctx = canvasRef.getContext("2d");
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
       return; // handle if source is closed
     }
     
     if (isDetecting) {
-      requestAnimationFrame(detectFrame);
+      animationId = requestAnimationFrame(detectFrame);
       return;
     }
     
@@ -150,8 +180,15 @@ export const detectVideo = (
     tf.engine().endScope(); // end of scoping
     isDetecting = false;
     
-    requestAnimationFrame(detectFrame); // get another frame
+    animationId = requestAnimationFrame(detectFrame); // get another frame
   };
   
   detectFrame(); // initialize to detect every frame
+  
+  // Return cleanup function
+  return () => {
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+    }
+  };
 };
