@@ -144,7 +144,8 @@ io.on("connection", (socket) => {
 
         if (!playerExists) {
             const players = roomsPlayers[data.gameID];
-            if (players.length >= numberWhitelist.length * letterWhitelist.length){
+            // if (players.length >= numberWhitelist.length * letterWhitelist.length){
+            if (players.length >= numberWhitelist.length){
                 console.warn(`Max players for game ${data.gameID} reached`);
                 if (typeof callback === "function") {
                     callback({ success: false, message: "Room is full." });
