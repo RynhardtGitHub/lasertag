@@ -219,12 +219,15 @@ io.on("connection", (socket) => {
                 let damage = data.eventData.weapon?.damage || 10; // Default damage=10
                 let victimId = data.eventData.victim;
                 let shooterId = data.eventData.shooter;
+                const shooter = roomsPlayers[data.gameID].find(p => p.shootId === shooterId);
+
+                if (!shooter?.isAlive) return;
 
                 // Decrease player health
                 const updatedPlayers = roomsPlayers[data.gameID].map(p => {
                     // hit the victim
                     if (p.shootId === victimId) {
-                      const newHealth = p.health - damage;
+                      const newHealth = Math.max(p.health - damage,0);
 
                       console.log(`Hit player: ${victimId}`)
                       return {
