@@ -78,7 +78,7 @@ io.on("connection", (socket) => {
 
         /* Sus workaround to creating an id with one number and lettter */
         let playerId = makeid(1,numberWhitelist);
-        playerId += makeid(1,letterWhitelist);
+        // playerId += makeid(1,letterWhitelist);
         //TODO CHANGE BACK
 
         // playerId = "1"
@@ -146,7 +146,7 @@ io.on("connection", (socket) => {
             const idExists = (id: string) => players.some(p => p.shootId === id);
             let playerId;
             do {
-                playerId = makeid(1, numberWhitelist) + makeid(1, letterWhitelist);
+                playerId = makeid(1, numberWhitelist);
             } while (idExists(playerId));
 
             const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
@@ -262,28 +262,6 @@ io.on("connection", (socket) => {
         io.to(gameID).emit("readyUp", gameID);
 
         console.log(roomsPlayers[gameID]);
-    })
-
-    socket.on("readyInGame",(data)=>{
-        if (!readyPlayers[data.gameID]) {
-            readyPlayers[data.gameID] = [];
-        }
-
-        // let playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
-
-        if (!readyPlayers[data.gameID].includes(data.playerID)){
-            readyPlayers[data.gameID].push(data.playerID)
-        }
-
-
-        const allPlayers = roomsPlayers[data.gameID] ?? [];
-        const allReady = allPlayers.every(p=>readyPlayers[data.gameID].includes(p.id));
-
-        if (allReady){
-            console.log("All ready");
-            console.log(readyPlayers)
-            io.to(data.gameID).emit("beginStartOfGame");
-        }
     })
 
     // Also add disconnect socket

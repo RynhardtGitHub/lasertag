@@ -14,7 +14,6 @@ interface ServerToClientEvents {
 
   //start game logic
   readyUp: (gameID:string)=>void;
-  beginStartOfGame: ()=>void;
 
   //game logic
   sendGameState : (data:{gameID:string,gameData:object})=>void;
@@ -32,7 +31,6 @@ interface ClientToServerEvents {
 
   //start/end game logic
   startGame: (gameID:string)=>void;
-  readyInGame: (data:{ gameID: string; playerID: string})=>void;
   endGame : (gameID:string)=>void;
 
   //game logic
