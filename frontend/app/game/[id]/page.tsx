@@ -18,6 +18,7 @@
     const router = useRouter()
     const gameId = params.id as string
     const webSocket = getWebSocket();  
+    const websocket = getWebSocket();  
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -266,6 +267,9 @@
         useGameStore.getState().setPlayers(playersFromServer);
       }
 
+      webSocket.on("updateRoom", handleUpdateRoom);
+      webSocket.on('endSession', () => router.push(`/results/${gameId}`));
+      webSocket.on('updateTimer', (timerVal) => {
       webSocket.on("updateRoom", handleUpdateRoom);
       webSocket.on('endSession', () => router.push(`/results/${gameId}`));
       webSocket.on('updateTimer', (timerVal) => {
