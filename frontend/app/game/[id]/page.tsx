@@ -8,10 +8,10 @@
   import { useGameStore } from "@/lib/store"
   import "@tensorflow/tfjs-backend-webgl"; // Ensure WebGL backend is used for TensorFlow.js
   import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
-  import Tesseract from "tesseract.js";
   import { getWebSocket } from "@/lib/websocket"
   import * as tf from "@tensorflow/tfjs";
   import { detectImage } from "./utils/detect";
+  import { getClosestColor, hexToRgb, rgbToHex ,findClosestColor} from "@/lib/utils"
 
   export default function GamePage() {
     const params = useParams()
@@ -70,79 +70,130 @@
     detectColor is also performing OCR
     */
     async function scanUser() {
-      await loadAndPlaySound(); // Play sound on click
+  await loadAndPlaySound(); // Play sound on click
 
-      console.log(net, inputShape, cameraActive, videoRef.current, canvasRef.current)
-      if (!cameraActive || !videoRef.current || !canvasRef.current || net == null) return
-
-      // Pass the callback function to handle detected players
-      detectImage(
-        videoRef.current, 
-        net, 
-        inputShape, 
-        classThreshold, 
-        canvasRef.current,
-        handlePlayerDetected // New callback function
-      );
-      
-      // You can still call detectColor if you want to keep the color detection
-      // await detectColor();
+  if (!cameraActive || !videoRef.current || !canvasRef.current || net == null) {
+    console.log("Scan user - missing requirements:", {
+      cameraActive,
+      videoRef: !!videoRef.current,
+      canvasRef: !!canvasRef.current,
+      net: !!net
+    });
+    return;
   }
-  const handlePlayerDetected = async (playerId:string, detectedColor=null) => {
-  console.log("Player ID detected:", playerId);
 
-  if (!currentPlayer) return;
+  // Check if video is ready
+  if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+    console.log("Video not ready for OCR");
+    return;
+  }
 
-  console.log("Player detected in bounding box:", playerId);
-  console.log("Detected color:", detectedColor);
-
-  const now = Date.now();
-  const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
-
-  // Prevent spam (1 second cooldown)
-  if (now - lastActionTime < 1000) return;
-
-  localStorage.setItem("lastActionTime", now.toString());
-
-  setLastAction(`Targeting ${playerId}...`);
+  console.log("Starting detection with OCR...");
   
-  try {
-    const matchedPlayer = roomPlayers.find(
-      (player) => player.shootId.toLowerCase() === playerId.toLowerCase()
-    );
+  // Pass the callback function to handle detected players
+  detectImage(
+    videoRef.current, 
+    net, 
+    inputShape, 
+    classThreshold, 
+    canvasRef.current,
+    handlePlayerDetected // New callback function
+  );
+}
 
-    console.log("Matched player:", matchedPlayer);
-    console.log("Room players:", roomPlayers);
-
-    if (matchedPlayer) {
-      console.log("Target acquired:", matchedPlayer.name);
-
-      // Emit the shoot event
-      webSocket.emit("triggerEvent", {
-        gameID: `${gameId}`,
-        eventType: 0,
-        eventData: {
-          shooterId: currentPlayer.id,
-          targetId: matchedPlayer.id,
-          shootId: playerId,
-        }
+useEffect(() => {
+  if (videoRef.current && canvasRef.current && cameraActive) {
+    const checkDimensions = () => {
+      console.log("Video dimensions:", {
+        videoWidth: videoRef.current?.videoWidth,
+        videoHeight: videoRef.current?.videoHeight,
+        canvasWidth: canvasRef.current?.width,
+        canvasHeight: canvasRef.current?.height
       });
-
-      console.log("Shoot event triggered for", matchedPlayer.name);
-      setLastAction(`Shot ${matchedPlayer.name}!`);
-    } else {
-      setLastAction("Missed! No player found.");
-    }
-  } catch (err) {
-    console.error("Failed to process player detection:", err);
+    };
+    
+    const interval = setInterval(checkDimensions, 5000);
+    return () => clearInterval(interval);
   }
+}, [cameraActive]);
 
-  setTimeout(() => setLastAction(""), 2000);
-};
+  const handlePlayerDetected = async (detectedColor:{r:number,b:number,g:number}) => {
+    if (!currentPlayer) return;
+
+    console.log("Player detected in bounding box:", detectedColor);
+
+    const now = Date.now();
+    const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
+
+    // Prevent spam (1 second cooldown)
+    if (now - lastActionTime < 1000) return;
+
+    localStorage.setItem("lastActionTime", now.toString());
+
+    // setLastAction(`Targeting ${detectedColor}...`);
+    
+    try {
+      let roomColours = roomPlayers.map(player => player.shootId.toLowerCase());
+
+      let roomRGB = roomColours
+        .map(color => hexToRgb(color))
+        .filter((c): c is { r: number; g: number; b: number } => c !== null); // <-- filter nulls
+      
+      
+      let detectedColorHex =  rgbToHex(detectedColor.r, detectedColor.g, detectedColor.b);
+
+      // let closestColour = findClosestColor(detectedColorHex,roomColours);
+      let closestColour = getClosestColor(detectedColor,roomRGB);
+      
+      if (!closestColour) {
+        console.error("No closest colour found");
+        setLastAction("No target found.");
+        return;
+      }
+      
+      let closestHex = rgbToHex(closestColour.r, closestColour.g, closestColour.b);
+
+      const matchedPlayer = roomPlayers.find(
+        (player) => player.shootId.toLowerCase() === closestHex.toLowerCase()
+      );
+
+      if (matchedPlayer?.shootId== currentPlayer.shootId){
+        console.log("You cannot shoot yourself!");
+        // setLastAction("You cannot shoot yourself!");
+        return;
+      }
 
 
+      console.log("Matched player:", matchedPlayer);
+      console.log("Room players:", roomPlayers);
 
-    useEffect(() => {
+      if (matchedPlayer) {
+        console.log("Target acquired:", matchedPlayer.name);
+
+        // Emit the shoot event
+        webSocket.emit("triggerEvent", {
+          gameID: `${gameId}`,
+          eventType: 0,
+          eventData: {
+            shooterId: currentPlayer.id,
+            targetId: matchedPlayer.id,
+            shootId: matchedPlayer.shootId,
+          }
+        });
+
+        console.log("Shoot event triggered for", matchedPlayer.name);
+        setLastAction(`Shot ${matchedPlayer.name}!`);
+      } else {
+        setLastAction("Missed! No player found.");
+      }
+    } catch (err) {
+      console.error("Failed to process player detection:", err);
+    }
+
+    setTimeout(() => setLastAction(""), 2000);
+  };
+
+  useEffect(() => {
         tf.ready().then(async () => {
           const yolov5 = await tf.loadGraphModel(
             `/${modelName}_web_model/model.json`,
@@ -170,8 +221,6 @@
 
     
     useEffect(() => {
-      console.log("modelYOLO:", inputShape);
-      console.log("modelYOLO:", net);
     }, [net, inputShape]);
 
     useEffect(() => {
@@ -256,146 +305,6 @@
       webSocket.on("updateRoom", handleUpdateRoom);
     },[]);
 
-    // 3. Update your detectColor function to work with the new system:
-async function detectColor() {
-  if (!cameraActive || !videoRef.current || !canvasRef.current) return
-
-  console.log('Color detection clicked')
-
-  const video = videoRef.current!
-  const canvas = canvasRef.current!
-  const ctx = canvas.getContext("2d")!
-
-  // Sample center area of the image for color detection
-  const centerX = canvas.width / 2
-  const centerY = canvas.height / 2
-  const sampleSize = 150
-
-  const imageData = ctx.getImageData(
-    centerX - sampleSize / 2,
-    centerY - sampleSize / 2,
-    sampleSize,
-    sampleSize
-  )
-
-  let r = 0, g = 0, b = 0
-  const pixels = imageData.data.length / 4
-
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    r += imageData.data[i]
-    g += imageData.data[i + 1]
-    b += imageData.data[i + 2]
-  }
-
-  r = Math.floor(r / pixels)
-  g = Math.floor(g / pixels)
-  b = Math.floor(b / pixels)
-
-  // Detect dominant color and trigger actions
-  const threshold = 50
-  if (r > g + threshold && r > b + threshold) {
-    setDetectedColor("red")
-    handleColorAction("red")
-  } else if (g > r + threshold && g > b + threshold) {
-    setDetectedColor("green")
-    handleColorAction("green")
-  } else if (b > r + threshold && b > g + threshold) {
-    setDetectedColor("blue")
-    handleColorAction("blue")
-  } else {
-    setDetectedColor(null)
-  }
-}
-
-
-    const handleNumberAction = async (detectedNumber: string) => {
-      if (!currentPlayer) return
-
-      console.log("Handling number action for:", detectedNumber)
-
-      const now = Date.now()
-      const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
-
-      // Prevent spam (1 second cooldown)
-      if (now - lastActionTime < 1000) return
-
-      localStorage.setItem("lastActionTime", now.toString())
-
-      setLastAction(`${detectedNumber}`)
-      
-      try {
-        const matchedPlayer = roomPlayers.find(
-          (player) => player.shootId.toLowerCase() === detectedNumber.toLowerCase()
-        );
-
-        console.log("Matched player:", matchedPlayer)
-        console.log(roomPlayers)
-
-        if (matchedPlayer) {
-          console.log("Target acquired:", matchedPlayer.name);
-
-          webSocket.emit("triggerEvent", {
-            gameID: `${gameId}`,
-            eventType: 0,
-            eventData: {
-              shooterId: currentPlayer.id,
-              targetId: matchedPlayer.id,
-              shootId: detectedNumber,
-            }}
-          );
-
-          console.log("Shoot event triggered for", matchedPlayer.name);
-
-          setLastAction(`Shot ${matchedPlayer.name}!`);
-        } else {
-          // console.log("No matching shoot ID found for", detectedNumber);
-          setLastAction("Missed! No player found.");
-        }
-
-        // websocket.emit("shootPlayer", detectedNumber);
-
-      } catch (err) {
-        console.error("Failed to get room info:", err);
-      }
-      // websocket.emit('shootPlayer', detectedNumber);
-
-      setTimeout(() => setLastAction(""), 2000)
-    }
-
-    const handleColorAction = (color: string) => {
-      if (!currentPlayer) return
-
-      const now = Date.now()
-      const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
-
-      // Prevent spam (1 second cooldown)
-      if (now - lastActionTime < 1000) return
-
-      localStorage.setItem("lastActionTime", now.toString())
-
-      switch (color) {
-        case "red":
-          // Shoot random player
-          const alivePlayers = players.filter((p) => p.isAlive && p.id !== currentPlayer.id)
-          if (alivePlayers.length > 0) {
-            const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)]
-            shootPlayer(currentPlayer.id, target.id)
-            setLastAction(`Shot ${target.name}!`)
-          }
-          break
-        case "green":
-          healPlayer(currentPlayer.id)
-          setLastAction("Health restored!")
-          break
-        case "blue":
-          shieldPlayer(currentPlayer.id)
-          setLastAction("Shield activated!")
-          break
-      }
-
-      setTimeout(() => setLastAction(""), 2000)
-    }
-
     const formatTime = (seconds: number) => {
       const mins = Math.floor(seconds / 60)
       const secs = seconds % 60
@@ -420,18 +329,21 @@ async function detectColor() {
     }
 
     return (
+
       <div className="min-h-screen bg-black relative overflow-hidden">
         {/* Camera View */}
+        <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+
         <div className="absolute inset-0">
           <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
 
           {/* Crosshair */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            {/*<div className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center">
+          {/*<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {<div className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center">
               <div className="w-2 h-2 bg-white rounded-full" />
-            </div>*/}
+            </div>}
             <div
             className="border-2 border-white flex items-center justify-center"
             style={{
@@ -439,8 +351,7 @@ async function detectColor() {
               height: '150px',
               borderRadius: '0',
             }}
-          ></div>
-          </div>
+          ></div>*/}
         </div>
 
         {/* HUD Overlay */}
