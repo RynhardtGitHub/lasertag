@@ -2,8 +2,7 @@ import express, { Request, Response } from "express";
 import { createServer } from "http";
 import {createNewServer} from "./socketsLogic";
 import cors from "cors";
-import { makeid } from "./misc";
-import { createPlayer } from "./misc";
+import { createPlayer,makeid } from "./misc";
 import { Player } from "./types";
 
 const app = express();
@@ -12,9 +11,6 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
-let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
-
-let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
 app.use(express.json());
@@ -77,9 +73,12 @@ io.on("connection", (socket) => {
         // let playerId = makeid(2,playerIdWhitelist);
 
         /* Sus workaround to creating an id with one number and lettter */
-        let playerId = makeid(1,numberWhitelist);
+        // let playerId = makeid(1,numberWhitelist);
         // playerId += makeid(1,letterWhitelist);
         //TODO CHANGE BACK
+
+        //hex
+        let playerId = "#2754a8"
 
         // playerId = "1"
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
@@ -91,6 +90,7 @@ io.on("connection", (socket) => {
 
         socket.emit("sendRoom", roomID,[]);
     })
+
 
     socket.on("getRoomInfo",(roomID, callback)=>{
         // Assuming that initRoom is only called after rendering the lobby page
@@ -110,6 +110,7 @@ io.on("connection", (socket) => {
 
         io.to(roomID).emit("updateRoom", activePlayers)
     })
+
 
     socket.on("join",async (data,callback)=>{
         const availRooms = getRooms();
@@ -146,7 +147,8 @@ io.on("connection", (socket) => {
             const idExists = (id: string) => players.some(p => p.shootId === id);
             let playerId;
             do {
-                playerId = makeid(1, numberWhitelist);
+                // playerId = makeid(1, numberWhitelist);
+                playerId = "#4d615f"
             } while (idExists(playerId));
 
             const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
@@ -211,17 +213,8 @@ io.on("connection", (socket) => {
         if (data.eventType<0){
             return;
         }
-        switch (data.eventType) {
-            case 0: // shoot event
-                console.log("shoot him")
-                break;
 
-            case 1: // heal event
-                console.log("heal")
-        
-            default:
-                break;
-        }
+        console.log("Event received:", data);
 
         if (data.eventType==0){
             roomsPlayers[data.gameID].forEach((player) => {
