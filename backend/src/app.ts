@@ -60,7 +60,7 @@ app.get("/weapons",(req,res)=>{
 
 
 app.get("/version",(req,res)=>{
-    res.json({version: "0.1.1"});
+    res.json({version: "0.1.2"});
 })
 
 io.on("connection", (socket) => {
