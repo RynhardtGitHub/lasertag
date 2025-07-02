@@ -32,6 +32,18 @@ function getRooms(){
     return filteredRooms
 }
 
+export interface TriggerEventPayload {
+    gameID: string,
+    eventType: number;
+    eventData: {
+      weapon?: {
+        name: string;
+        damage: number;
+        range: number;
+      };
+      [key: string]: any;
+    };
+  }
 
 app.get('/', (req: Request, res: Response) => {
     res.send('Hello from Express with TypeScript!');
@@ -201,13 +213,43 @@ io.on("connection", (socket) => {
      * 1 => heal
      * 2 => ...
      */
-    socket.on("triggerEvent",(data)=>{
+    socket.on("triggerEvent",(data: TriggerEventPayload)=>{
         if (data.eventType<0){
             return;
         }
+
+        console.log('eventData')
+        console.log(data.eventData)
+
         switch (data.eventType) {
             case 0: // shoot event
-                console.log("shoot him")
+                let damage = data.eventData.weapon?.damage || 10; // Default damage=10
+                let victimId = data.eventData.victim;
+                let shooterId = data.eventData.shooter;
+
+                // Decrease player health
+                const updatedPlayers = roomsPlayers[data.gameID].map(p => {
+                    // hit the victim
+                    if (p.shootId === victimId) {
+                      const newHealth = p.health - damage;
+                      return {
+                        ...p,
+                        health: newHealth,
+                        isAlive: newHealth > 0
+                      };
+                    }
+                    // reward the shooter
+                    else if (p.shootId === shooterId) {
+                      return {
+                        ...p,
+                        score: p.score + 5
+                      };
+                    }
+                    // everyone else stays the same
+                    return p;
+                  });
+                  roomsPlayers[data.gameID] = updatedPlayers;
+
                 break;
 
             case 1: // heal event
