@@ -5,7 +5,7 @@
   import { Button } from "@/components/ui/button"
   import { Card, CardContent } from "@/components/ui/card"
   import { Badge } from "@/components/ui/badge"
-  import { useGameStore } from "@/lib/store"
+  import { useGameStore, Player } from "@/lib/store"
   import "@tensorflow/tfjs-backend-webgl"; // Ensure WebGL backend is used for TensorFlow.js
   import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
   import { getWebSocket } from "@/lib/websocket"
@@ -18,6 +18,7 @@
     const router = useRouter()
     const gameId = params.id as string
     const webSocket = getWebSocket();  
+    const websocket = getWebSocket();  
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -26,9 +27,19 @@
 
     const [detectedColor, setDetectedColor] = useState<string | null>(null)
     const [lastAction, setLastAction] = useState<string>("")
+    const streamRef = useRef<MediaStream | null>(null);
 
-    const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
-    
+    //const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+    const players = useGameStore((state) => state.players);
+    // const currentPlayer = useGameStore((state) => state.currentPlayer);
+    const { currentPlayer, setCurrentPlayer } = useGameStore();
+    const setPlayers = useGameStore((state) => state.setPlayers);
+    const setGameTime = useGameStore((state) => state.setGameTime);
+    const shootPlayer = useGameStore((state) => state.shootPlayer);
+    const healPlayer = useGameStore((state) => state.healPlayer);
+    const shieldPlayer = useGameStore((state) => state.shieldPlayer);
+    const gameTime = useGameStore((state) => state.gameTime);
+
     //YOLO START
     const [loading, setLoading] = useState({ loading: true, progress: 0 }); // loading state
     
@@ -65,6 +76,19 @@
         console.error("Failed to play sound:", err);
       }
     };
+
+    // Weapon setup
+    const weapons = [
+      { name: "Knife", damage: 5, range: 25 },
+      { name: "Basic Pistol", damage: 5, range: 50 },
+      { name: "Shotgun", damage: 15, range: 75 },
+      { name: "Rocket Launcher", damage: 30, range: 200 },
+    ];
+    let playerWeapon = weapons[1]; // basic pistol
+
+    const randomiseWeapon = () => {
+      return weapons[Math.floor( Math.random() * weapons.length )];
+    }
 
     /*
     detectColor is also performing OCR
@@ -223,33 +247,46 @@ useEffect(() => {
     useEffect(() => {
     }, [net, inputShape]);
 
-    useEffect(() => {
-      webSocket.emit("getRoomInfo", gameId);
+  // Fetch data every two seconds
+  useEffect(() => {
+    // guard: don’t start polling until we know our gameId
+    if (!gameId) return
 
-      const handleUpdateRoom = (playersFromServer: typeof players) => {
-        useGameStore.getState().setPlayers(playersFromServer);
-        setRoomPlayers(playersFromServer);
-      };
+    const interval = setInterval(() => {
+      webSocket.emit(
+        'getRoomInfo',
+        gameId,
+        (res: { success?: boolean; activePlayers?: any[]; error?: string }) => {
+          if (res.error) {
+            console.error('Failed to fetch room info:', res.error)
+            return
+          }
+          if (res.success && Array.isArray(res.activePlayers)) {
+            // shove the live list of players into your store
+            setPlayers(res.activePlayers)
+            res.activePlayers.forEach((p) => {
+              if (p.shootId === currentPlayer?.shootId) {
+                setCurrentPlayer(p);
+              }
+            })
+          }
+        }
+      )
+    }, 2_000)
 
-      webSocket.on("updateRoom", handleUpdateRoom);
+    return () => clearInterval(interval)
+  }, [gameId, webSocket, setPlayers])
+useEffect(() => {
+  const timer = setInterval(() => {
+    setGameTime(Math.max(0, gameTime - 1));
+  }, 1000);
 
-      return () => {
-        webSocket.off("updateRoom", handleUpdateRoom); // clean up listener
-      };
-    }, [webSocket, gameId]);
-    
-    // Game timer
-    useEffect(() => {
-      const timer = setInterval(() => {
-        setGameTime(Math.max(0, gameTime - 1))
-      }, 1000)
+  if (gameTime === 0) {
+    router.push(`/results/${gameId}`);
+  }
 
-      if (gameTime === 0) {
-        router.push(`/results/${gameId}`)
-      }
-
-      return () => clearInterval(timer)
-    }, [gameTime, gameId, router, setGameTime])
+  return () => clearInterval(timer);
+}, [gameTime, gameId, router, setGameTime]);
 
     // Camera setup
     useEffect(() => {
@@ -262,10 +299,12 @@ useEffect(() => {
               height: { ideal: 720 }
             },
           })
-
+          
+          streamRef.current = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream
             setCameraActive(true)
+            websocket.emit("playerReadyForStream", { gameId });
           }
         } catch (err) {
           console.error("Error accessing camera:", err)
@@ -297,13 +336,215 @@ useEffect(() => {
       }
     }, [cameraActive, videoRef, canvasRef,modelReady])
 
+   useEffect(() => {
+    if (!cameraActive || !streamRef.current || !websocket || !videoRef.current?.srcObject) return;
+
+    const stream = streamRef.current;
+    const peerConnections: { [id: string]: RTCPeerConnection } = {};
+    
+    console.log("Setting up WebRTC for game", gameId);
+    
+    // Tell server this player is ready to stream
+    websocket.emit("playerReadyForStream", { gameId });
+
+    // Handle spectator connection (hyphenated version)
+    // In game.tsx - Fix the spectator connection handling
+    const handleSpectatorConnected = async (spectatorId: string) => {
+      console.log("Spectator connected:", spectatorId);
+
+      const stream = streamRef.current;
+      if (!stream || !stream.getTracks().length) {
+        console.warn("No stream or tracks available at spectator connect");
+        return; // Don't proceed without a valid stream
+      }
+
+      console.log("Stream details:", {
+        id: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+        active: stream.active
+      });
+
+      try {
+        const peer = new RTCPeerConnection({
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" }
+          ],
+        });
+
+        if (!peerConnections[spectatorId]) {
+          peerConnections[spectatorId] = peer;
+        }
+
+        // Add tracks BEFORE creating offer
+        stream.getTracks().forEach(track => {
+          console.log("Adding track to peer connection:", {
+            kind: track.kind,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            id: track.id
+          });
+          peer.addTrack(track, stream);
+        });
+
+        // Handle ICE candidates
+        peer.onicecandidate = (event) => {
+          if (event.candidate) {
+            console.log("Sending ICE candidate to spectator:", spectatorId);
+            websocket.emit("webrtcCandidate", {
+              to: spectatorId,
+              candidate: event.candidate,
+            });
+          }
+        };
+
+        // Monitor connection state
+        peer.onconnectionstatechange = () => {
+          console.log(`Connection state with spectator ${spectatorId}:`, peer.connectionState);
+        };
+
+        peer.oniceconnectionstatechange = () => {
+          console.log(`ICE connection state with spectator ${spectatorId}:`, peer.iceConnectionState);
+        };
+
+        // Create and send offer
+        const offer = await peer.createOffer({
+          offerToReceiveAudio: false, // We're only sending, not receiving
+          offerToReceiveVideo: false
+        });
+        
+        await peer.setLocalDescription(offer);
+        
+        console.log("Sending offer to spectator:", spectatorId, "SDP:", offer.sdp?.substring(0, 100) + "...");
+        
+        websocket.emit("webrtcOffer", {
+          to: spectatorId,
+          from: websocket.id,
+          sdp: offer,
+          gameId,
+        });
+      } catch (err) {
+        console.error("Failed to handle spectator connection:", err);
+      }
+    };
+
+    // Handle request for offer (alternative method)
+    const handleRequestOffer = async ({ spectatorId }: { spectatorId: string }) => {
+      console.log("Offer requested by spectator:", spectatorId);
+      await handleSpectatorConnected(spectatorId);
+    };
+
+    // Handle answer from spectator
+    const handleWebRTCAnswer = async ({ answer, from }: {answer: RTCSessionDescriptionInit; from: string }) => {
+      console.log("Received WebRTC answer from:", from);
+      const peer = peerConnections[from];
+      if (peer) {
+        try {
+          await peer.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log("Successfully set remote description for spectator:", from);
+        } catch (err) {
+          console.error("Failed to set remote description:", err);
+        }
+      } else {
+        console.warn("No peer connection found for spectator:", from);
+      }
+    };
+
+    // Handle ICE candidates from spectator
+    const handleWebRTCCandidate = async ({ from, candidate }: { from: string; candidate: RTCIceCandidateInit }) => {
+      console.log("Received ICE candidate from:", from);
+      const peer = peerConnections[from];
+      if (peer && candidate) {
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log("Successfully added ICE candidate from spectator:", from);
+        } catch (err) {
+          console.error("Failed to add ICE candidate:", err);
+        }
+      }
+    };
+
+    // Register event listeners
+    websocket.on("spectator-connected", handleSpectatorConnected);
+    websocket.on("requestOffer", handleRequestOffer);
+    websocket.on("webrtcAnswer", handleWebRTCAnswer);
+    websocket.on("webrtcCandidate", handleWebRTCCandidate);
+
+    return () => {
+      console.log("Cleaning up game WebRTC connections");
+      
+      // // Close all peer connections
+      Object.values(peerConnections).forEach(pc => {
+        if (pc) {
+          pc.close();
+        }
+      });
+      
+      // Remove event listeners
+      websocket.off("spectator-connected", handleSpectatorConnected);
+      websocket.off("requestOffer", handleRequestOffer);
+      websocket.off("webrtcAnswer", handleWebRTCAnswer);
+      websocket.off("webrtcCandidate", handleWebRTCCandidate);
+    };
+  }, [cameraActive, gameId, websocket]);
+
     useEffect(() => {
       const handleUpdateRoom = (playersFromServer : typeof players)=>{
         useGameStore.getState().setPlayers(playersFromServer);
       }
 
       webSocket.on("updateRoom", handleUpdateRoom);
+      webSocket.on('endSession', () => router.push(`/results/${gameId}`));
+      webSocket.on('updateTimer', (timerVal) => {
+        setGameTime(timerVal);
+      });
+      webSocket.on("updateRoom", handleUpdateRoom);
+      webSocket.on('endSession', () => router.push(`/results/${gameId}`));
+      webSocket.on('updateTimer', (timerVal) => {
+        setGameTime(timerVal);
+
+        // Randomise weapon on two min remaining
+        if (timerVal === 120) {
+          playerWeapon = randomiseWeapon();
+          console.log(`Randomised weapon!`);
+        }
+      });
     },[]);
+
+    const handleColorAction = (color: string) => {
+      if (!currentPlayer) return
+
+      const now = Date.now()
+      const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
+
+      // Prevent spam (1 second cooldown)
+      if (now - lastActionTime < 1000) return
+
+      localStorage.setItem("lastActionTime", now.toString())
+
+      switch (color) {
+        case "red":
+          // Shoot random player
+          const alivePlayers = players.filter((p) => p.isAlive && p.id !== currentPlayer.id)
+          if (alivePlayers.length > 0) {
+            const target = alivePlayers[Math.floor(Math.random() * alivePlayers.length)]
+            shootPlayer(currentPlayer.id, target.id)
+            setLastAction(`Shot ${target.name}!`)
+          }
+          break
+        case "green":
+          healPlayer(currentPlayer.id)
+          setLastAction("Health restored!")
+          break
+        case "blue":
+          shieldPlayer(currentPlayer.id)
+          setLastAction("Shield activated!")
+          break
+      }
+
+      setTimeout(() => setLastAction(""), 2000)
+    }
 
     const formatTime = (seconds: number) => {
       const mins = Math.floor(seconds / 60)
@@ -453,7 +694,10 @@ useEffect(() => {
           {/* Exit Button */}
           {currentPlayer.isHost && (
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-              <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
+              <Button onClick={() => {
+                webSocket.emit('endGame', gameId);
+                router.push(`/results/${gameId}`);
+            }} variant="destructive" className="w-full">
                 End Game
               </Button>
             </div>

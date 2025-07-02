@@ -1,5 +1,11 @@
 import { Player } from "./types"
 
+export const Arsenal: [string, number][] = [
+  ["Knife", 5],
+  ["Basic Pistol", 10],
+  ["Shotgun", 20],
+  ["Rocket Launcher", 45]
+];
 
 export function makeid(length:number, whitelist:string|null=null) {
     var result           = '';
@@ -24,7 +30,7 @@ export function createPlayer(
     shootId: shootId,
     health: 100,
     score: 0,
-    weapon: "Basic Laser",
+    weapon: Arsenal[1],
     isAlive: true,
     ...options, // override defaults if provided
   };

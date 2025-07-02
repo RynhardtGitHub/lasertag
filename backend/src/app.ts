@@ -4,6 +4,7 @@ import {createNewServer} from "./socketsLogic";
 import cors from "cors";
 import { createPlayer,makeid } from "./misc";
 import { Player } from "./types";
+import { defaultMaxListeners } from "events";
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -11,6 +12,12 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
+let roomTimers: {[key:string] : number} = {};
+let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
+let defaultTime = 300;
+let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
+
+let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
 app.use(express.json());
@@ -27,6 +34,18 @@ function getRooms(){
     return filteredRooms
 }
 
+export interface TriggerEventPayload {
+    gameID: string,
+    eventType: number;
+    eventData: {
+      weapon?: {
+        name: string;
+        damage: number;
+        range: number;
+      },
+      [key: string]: any;
+    };
+  }
 
 app.get('/', (req: Request, res: Response) => {
     res.send('Hello from Express with TypeScript!');
@@ -65,28 +84,16 @@ io.on("connection", (socket) => {
 
     let numberWhitelist = '123';
     let letterWhitelist = 'APU';
+    let maxPlayers = 8;
 
-    socket.on("create",(playerName)=>{
-        // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
+    socket.on("create",(data)=>{
+        let newPlayer = createPlayer(socket.id,data.playerName,data.shirtColor,{isHost:true,isSpectator:false});
+        console.log(`Created player with id: ${data.shirtColor}`)
 
-        // let playerIdWhitelist = 'APURM0123456789';
-        // let playerId = makeid(2,playerIdWhitelist);
-
-        /* Sus workaround to creating an id with one number and lettter */
-        // let playerId = makeid(1,numberWhitelist);
-        // playerId += makeid(1,letterWhitelist);
-        //TODO CHANGE BACK
-
-        //hex
-        let playerId = "#2754a8"
-
-        // playerId = "1"
-        let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
-        console.log(`Created player with id: ${playerId}`)
-
-        const roomID = makeid(6); 
+        const roomID = makeid(6);
         socket.join(roomID)
         roomsPlayers[roomID]=[newPlayer];
+        roomTimers[roomID] = defaultTime;
 
         socket.emit("sendRoom", roomID,[]);
     })
@@ -137,23 +144,18 @@ io.on("connection", (socket) => {
 
         if (!playerExists) {
             const players = roomsPlayers[data.gameID];
-            if (players.length >= numberWhitelist.length * letterWhitelist.length){
+            // if (players.length >= numberWhitelist.length * letterWhitelist.length){
+            if (players.length >= maxPlayers){
                 console.warn(`Max players for game ${data.gameID} reached`);
                 if (typeof callback === "function") {
                     callback({ success: false, message: "Room is full." });
                 }
                 return;
             }
-            const idExists = (id: string) => players.some(p => p.shootId === id);
-            let playerId;
-            do {
-                // playerId = makeid(1, numberWhitelist);
-                playerId = "#4d615f"
-            } while (idExists(playerId));
 
-            const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
+            const newPlayer = createPlayer(socket.id, data.playerName,data.shirtColor,{ isHost: false, isSpectator: false });
             roomsPlayers[data.gameID].push(newPlayer);
-            console.log(`New player joined with ID: ${playerId}`)
+            console.log(`New player joined with shirtColor: ${data.shirtColor}`)
         }
 
         if (typeof callback === "function") {
@@ -183,18 +185,14 @@ io.on("connection", (socket) => {
             roomsPlayers[data.gameID] = [];
         }
 
-        let spectatorName;
-
-        if (data.playerName==undefined){
-            spectatorName = "";
-        }else{
-            spectatorName = data.playerName;
+        if (!roomsPlayers[data.gameID]) {
+            roomsPlayers[data.gameID] = [];
         }
 
-        if (!playerExists) {
-            const newSpec = createPlayer(socket.id,spectatorName,"", { isHost: false, isSpectator: true });
-            roomsPlayers[data.gameID].push(newSpec);
-        }
+        let spectatorName = data.playerName || "";
+
+        const newSpec = createPlayer(socket.id, spectatorName, "", { isHost: false, isSpectator: true });
+        roomsPlayers[data.gameID].push(newSpec);
 
         if (typeof callback === "function") {
             callback({ success: true });
@@ -209,42 +207,52 @@ io.on("connection", (socket) => {
      * 1 => heal
      * 2 => ...
      */
-    socket.on("triggerEvent",(data)=>{
+    socket.on("triggerEvent",(data: TriggerEventPayload)=>{
         if (data.eventType<0){
             return;
         }
 
-        console.log("Event received:", data);
+        console.log('eventData')
+        console.log(data.eventData)
 
-        if (data.eventType==0){
-            roomsPlayers[data.gameID].forEach((player) => {
-                if (data.eventData.targetId === undefined)
+        switch (data.eventType) {
+            case 0: // shoot event
+                let damage = data.eventData.weapon?.damage || 10; // Default damage=10
+                let victimId = data.eventData.victim;
+                let shooterId = data.eventData.shooter;
 
-                if (player.id === data.eventData.targetId) {
-                    player.health -= 10; // Example damage
-                    
-                    /**
-                     * 
-                        shooterId: currentPlayer.id,
-                        targetId: matchedPlayer.id,
-                        shootId: detectedNumber,
-                     */
-                    console.log(`Player ${player.name} shot! Health: ${player.health}`);
-                }
-            });
+                // Decrease player health
+                const updatedPlayers = roomsPlayers[data.gameID].map(p => {
+                    // hit the victim
+                    if (p.shootId === victimId) {
+                      const newHealth = p.health - damage;
 
-             let object = {
-                players: roomsPlayers[data.gameID],
-                eventType: data.eventType
-            };
+                      console.log(`Hit player: ${victimId}`)
+                      return {
+                        ...p,
+                        health: newHealth,
+                        isAlive: newHealth > 0
+                      };
+                    }
+                    // reward the shooter
+                    if (p.shootId === shooterId) {
+                        console.log(`${shooterId} points: ${p.score + 5}`)
+                      return {
+                        ...p,
+                        score: p.score + 5
+                      };
+                    }
+                    // everyone else stays the same
+                    return p;
+                  });
+                  roomsPlayers[data.gameID] = updatedPlayers;
+                break;
 
-            io.to(data.gameID).emit("sendGameState", {gameID: data.gameID, gameData: object});
-            console.log("SHOOT EVENT");
-
-        }else if (data.eventType==1){
-            console.log("HEAL EVENT"); 
-        }else{
-            console.log("INVALID EVENT");
+            case 1: // heal event
+                console.log("heal")
+        
+            default:
+                break;
         }
     })
 
@@ -254,17 +262,142 @@ io.on("connection", (socket) => {
         }
         io.to(gameID).emit("readyUp", gameID);
 
-        console.log(roomsPlayers[gameID]);
+        roomIntervals[gameID] = setInterval(() => {
+            if (roomTimers[gameID] > 0) {
+              roomTimers[gameID]--;
+        
+              // Optionally: emit updated time to clients
+              io.to(gameID).emit("updateTimer", roomTimers[gameID]);
+            } else {
+              clearInterval(roomIntervals[gameID]);
+              delete roomIntervals[gameID];
+              console.log(`Timer for room ${gameID} ended.`);
+              
+              io.to(gameID).emit("endSession");
+            }
+          }, 1000); // every second
     })
+
+    socket.on('endGame', (gameID)=>{
+        io.to(gameID).emit('endSession');
+    });
 
     // Also add disconnect socket
     // socket.on("erasePlayer", async (playerId) => {
     //     console.log(roomsPlayers)
     //     console.log(assignedPlayerIds)
     // })
+
+
+    //  socket.on("misc", (currPlayerId)=>{
+    //     //ranodm number 
+    //     const randomNumber = Math.floor(Math.random() * 2) + 1;
+
+    //     //case statment to determine which power up
+    //     switch(randomNumber) {
+    //         case 1:     //increased health
+    //             if (currentRoomID){
+    //                 let shooter = roomsPlayers[currentRoomID]?.find(
+    //                     (player) => player.id === currPlayerId
+    //                 );
+                    
+    //                 if (shooter){
+    //                     shooter.health = 100;
+    //                     console.log("H " + shooter.health);
+    //                 }
+                    
+    //             }
+    //         case 2:
+    //             case 1:     //weapon change
+    //             if (currentRoomID){
+    //                 let shooter = roomsPlayers[currentRoomID]?.find(
+    //                     (player) => player.id === currPlayerId
+    //                 );
+                    
+    //                 if (shooter){
+    //                     shooter.weapon = Arsenal[Math.floor(Math.random() * 3) + 0];
+    //                     console.log("W " + shooter.weapon);
+    //                 }
+                    
+    //             }    
+    //     }
+    //     if(currentRoomID)
+    //     {
+    //         io.to(currentRoomID).emit("updateRoom", roomsPlayers[currentRoomID]);
+    //     }
+    // })
+
+    //streaming
+    socket.on("playerReadyForStream", ({ gameId }) => {
+        socket.join(gameId);
+        socket.data.role = "player";
+        socket.data.gameId = gameId;
+        console.log(`Player ${socket.id} ready to stream in game ${gameId}`);
+    });
+
+    // Spectator joins the game room
+    socket.on("spectatorJoin", ({ gameId }) => {
+        socket.join(gameId);
+        socket.data.role = "spectator";
+        socket.data.gameId = gameId;
+        console.log(`Spectator ${socket.id} joined game ${gameId}`);
+
+        // Method 1: Notify all players that a spectator connected (hyphenated version for game client)
+        socket.to(gameId).emit("spectator-connected", socket.id);
+        
+        // Method 2: Also request offers from all players (alternative approach)
+        const room = io.sockets.adapter.rooms.get(gameId);
+        if (room) {
+            for (const socketId of room) {
+                const peer = io.sockets.sockets.get(socketId);
+                if (peer?.data.role === "player" && socketId !== socket.id) {
+                    console.log(`Requesting offer from player ${socketId} for spectator ${socket.id}`);
+                    peer.emit("requestOffer", { spectatorId: socket.id });
+                }
+            }
+        }
+    });
+
+    // Player sends WebRTC offer to spectator
+    socket.on("webrtcOffer", ({ to, from, sdp, gameId }) => {
+        console.log(`Relaying WebRTC offer from ${from} to ${to} in game ${gameId || 'unknown'}`);
+        io.to(to).emit("offerFromPlayer", { 
+            offer: sdp, 
+            from: from || socket.id 
+        });
+    });
+
+    // Spectator sends WebRTC answer to player
+    socket.on("webrtcAnswer", ({ to, sdp }) => {
+        console.log(`Relaying WebRTC answer from ${socket.id} to ${to}`);
+        io.to(to).emit("webrtcAnswer", { 
+            answer: sdp, 
+            from: socket.id 
+        });
+    });
+
+    // Alternative answer event (in case spectate page uses different event name)
+    socket.on("sendAnswer", ({ answer, to }) => {
+        console.log(`Relaying answer (via sendAnswer) from ${socket.id} to ${to}`);
+        io.to(to).emit("webrtcAnswer", { 
+            answer: answer, 
+            from: socket.id 
+        });
+    });
+
+    // ICE candidates exchange (bidirectional)
+    socket.on("webrtcCandidate", ({ to, candidate }) => {
+        console.log(`Relaying ICE candidate from ${socket.id} to ${to}`);
+        io.to(to).emit("webrtcCandidate", { 
+            candidate, 
+            from: socket.id 
+        });
+    });
+
+
 });
 
 
 httpServer.listen(port, () => {
     console.log(`HTTP + Socket.IO server running on port ${port}`);
-});
+});    

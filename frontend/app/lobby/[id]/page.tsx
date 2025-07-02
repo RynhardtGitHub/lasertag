@@ -134,7 +134,7 @@ export default function LobbyPage() {
                         You
                       </Badge>
                     )}
-                    <span className="text-white font-bold w-full text-center">Pick up tag: {(player.shootId)}</span>
+                    <span className="text-white font-bold w-full text-center">Shirt colour: {(player.shootId)}</span>
                   </div>
                   <Badge variant="outline" className="text-green-400 border-green-400">
                     Ready
