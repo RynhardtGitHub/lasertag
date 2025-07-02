@@ -13,6 +13,8 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
+let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
+
 let roomTimers: {[key:string] : number} = {};
 let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
 let defaultTime = 300;
@@ -74,7 +76,9 @@ io.on("connection", (socket) => {
     socket.on("create",(playerName)=>{
         let playerId = makeid(1,numberWhitelist);
         playerId += makeid(1,letterWhitelist);
+        //TODO CHANGE BACK
 
+        // playerId = "1"
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         console.log(`Created player with id: ${playerId}`)
 
@@ -217,6 +221,36 @@ io.on("connection", (socket) => {
                 break;
         }
 
+        if (data.eventType==0){
+            roomsPlayers[data.gameID].forEach((player) => {
+                if (data.eventData.targetId === undefined)
+
+                if (player.id === data.eventData.targetId) {
+                    player.health -= 10; // Example damage
+                    
+                    /**
+                     * 
+                        shooterId: currentPlayer.id,
+                        targetId: matchedPlayer.id,
+                        shootId: detectedNumber,
+                     */
+                    console.log(`Player ${player.name} shot! Health: ${player.health}`);
+                }
+            });
+
+             let object = {
+                players: roomsPlayers[data.gameID],
+                eventType: data.eventType
+            };
+
+            io.to(data.gameID).emit("sendGameState", {gameID: data.gameID, gameData: object});
+            console.log("SHOOT EVENT");
+
+        }else if (data.eventType==1){
+            console.log("HEAL EVENT"); 
+        }else{
+            console.log("INVALID EVENT");
+        }
     })
 
     socket.on("startGame", (gameID)=>{
@@ -224,6 +258,31 @@ io.on("connection", (socket) => {
             return;
         }
         io.to(gameID).emit("readyUp", gameID);
+
+        console.log(roomsPlayers[gameID]);
+    })
+
+    socket.on("readyInGame",(data)=>{
+        let gameID =data.gameID;
+        if (!readyPlayers[data.gameID]) {
+            readyPlayers[data.gameID] = [];
+        }
+
+        // let playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
+
+        if (!readyPlayers[data.gameID].includes(data.playerID)){
+            readyPlayers[data.gameID].push(data.playerID)
+        }
+
+
+        const allPlayers = roomsPlayers[data.gameID] ?? [];
+        const allReady = allPlayers.every(p=>readyPlayers[data.gameID].includes(p.id));
+
+        if (allReady){
+            console.log("All ready");
+            console.log(readyPlayers)
+            io.to(data.gameID).emit("beginStartOfGame");
+        }
 
         roomIntervals[gameID] = setInterval(() => {
             if (roomTimers[gameID] > 0) {

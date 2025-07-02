@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
 export interface Player {
+  shootId: any
   id: string
   name: string
   shootId: string

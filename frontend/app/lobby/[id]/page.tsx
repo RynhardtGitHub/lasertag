@@ -58,6 +58,7 @@ export default function LobbyPage() {
       };
   }, [gameId, playerName])
 
+
   const copyGameId = async () => {
     try {
       await navigator.clipboard.writeText(gameId)
@@ -68,6 +69,7 @@ export default function LobbyPage() {
     }
   }
 
+  
   const startGame = () => {
     if (isHost && players.length >= 1){
         websocket.emit("startGame", gameId);
