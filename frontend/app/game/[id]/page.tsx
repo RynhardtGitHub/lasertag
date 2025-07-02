@@ -15,7 +15,6 @@
     const params = useParams()
     const router = useRouter()
     const gameId = params.id as string
-    const webSocket = getWebSocket();   
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -29,25 +28,25 @@
       return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    // Weapon setup
+    const weapons = [
+      { name: "Knife", damage: 5, range: 25 },
+      { name: "Basic Pistol", damage: 5, range: 50 },
+      { name: "Shotgun", damage: 15, range: 75 },
+      { name: "Rocket Launcher", damage: 30, range: 200 },
+    ];
+    let playerWeapon = weapons[1]; // basic pistol
+
+    const randomiseWeapon = () => {
+      return weapons[Math.floor( Math.random() * weapons.length )];
+    }
+
     /*
     detectColor is also performing OCR
     */
     async function scanUser() {
       await detectColor();
     }
-    
-    // Game timer
-    // useEffect(() => {
-    //   const timer = setInterval(() => {
-    //     setGameTime(Math.max(0, gameTime - 1))
-    //   }, 1000)
-
-    //   if (gameTime === 0) {
-    //     router.push(`/results/${gameId}`)
-    //   }
-
-    //   return () => clearInterval(timer)
-    // }, [gameTime, gameId, router, setGameTime])
 
     // Camera setup
     useEffect(() => {
@@ -104,6 +103,12 @@
       websocket.on('endSession', () => router.push(`/results/${gameId}`));
       websocket.on('updateTimer', (timerVal) => {
         setGameTime(timerVal);
+
+        // Randomise weapon on two min remaining
+        if (timerVal === 120) {
+          playerWeapon = randomiseWeapon();
+          console.log(`Randomised weapon!`);
+        }
       });
     },[]);
 
@@ -235,7 +240,9 @@
             gameID: `${gameId}`,
             eventType: 0,
             eventData: {
-
+              weapon: playerWeapon,
+              victim: detectedNumber,
+              shooter: currentPlayer?.shootId,
             }}
           );
 
