@@ -15,6 +15,12 @@ interface ServerToClientEvents {
 
   //start game logic
   readyUp: (gameID:string)=>void;
+
+  //time logic
+  updateTimer: (timerVal:number)=>void;
+
+  //end game logic
+  endSession: ()=>void;
 }
 
 
@@ -29,6 +35,9 @@ interface ClientToServerEvents {
   //start game logic
   startGame: (gameID:string)=>void;
   startGameMessageRecievied: (gameID:string,playerID:string)=>void;
+
+  //end game logic
+  endGame: (gameId: string)=>void;
 
   //game logic
   triggerEvent:(data:{gameID:string,eventType:number,eventData:JSON})=>void

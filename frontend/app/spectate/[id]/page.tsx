@@ -47,27 +47,11 @@ export default function SpectatePage() {
 
     return () => clearInterval(interval)
   }, [gameId, webSocket, setPlayers])
-
-  webSocket.on('readyUp', () => {
-    let gt = gameTime;
-    // initialize the time
-    setGameTime(Math.max(0, gameTime))
   
-    // clear any existing timer (safety)
-    if (timerId) clearInterval(timerId)
-  
-    // start a brand-new timer
-    const id = window.setInterval(() => {
-      setGameTime(gt = Math.max(0, gt - 1))
-    }, 1000)
-    setTimerId(id)
-  })
-  
-  useEffect(() => {
-    if (gameTime === 0) {
-      router.push(`/results/${gameId}`)
-    }
-  }, [gameTime, gameId, router])
+  webSocket.on('updateTimer', (timerVal) => {
+    setGameTime(timerVal);
+  });
+  webSocket.on('endSession', () => router.push(`/results/${gameId}`));
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)

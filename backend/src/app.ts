@@ -5,6 +5,7 @@ import cors from "cors";
 import { makeid } from "./misc";
 import { createPlayer } from "./misc";
 import { Player } from "./types";
+import { defaultMaxListeners } from "events";
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -12,7 +13,9 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
-let assignedPlayerIds: Array<string> = [];
+let roomTimers: {[key:string] : number} = {};
+let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
+let defaultTime = 60;
 
 app.use(cors());
 app.use(express.json());
@@ -69,21 +72,16 @@ io.on("connection", (socket) => {
     let letterWhitelist = 'APU';
 
     socket.on("create",(playerName)=>{
-        // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
-
-        // let playerIdWhitelist = 'APURM0123456789';
-        // let playerId = makeid(2,playerIdWhitelist);
-
-        /* Sus workaround to creating an id with one number and lettter */
         let playerId = makeid(1,numberWhitelist);
         playerId += makeid(1,letterWhitelist);
 
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         console.log(`Created player with id: ${playerId}`)
 
-        const roomID = makeid(6); 
+        const roomID = makeid(6);
         socket.join(roomID)
         roomsPlayers[roomID]=[newPlayer];
+        roomTimers[roomID] = defaultTime;
 
         socket.emit("sendRoom", roomID,[]);
     })
@@ -226,7 +224,27 @@ io.on("connection", (socket) => {
             return;
         }
         io.to(gameID).emit("readyUp", gameID);
+
+        roomIntervals[gameID] = setInterval(() => {
+            if (roomTimers[gameID] > 0) {
+              roomTimers[gameID]--;
+              console.log(`Room ${gameID} timer: ${roomTimers[gameID]}`);
+        
+              // Optionally: emit updated time to clients
+              io.to(gameID).emit("updateTimer", roomTimers[gameID]);
+            } else {
+              clearInterval(roomIntervals[gameID]);
+              delete roomIntervals[gameID];
+              console.log(`Timer for room ${gameID} ended.`);
+              
+              io.to(gameID).emit("endSession");
+            }
+          }, 1000); // every second
     })
+
+    socket.on('endGame', (gameID)=>{
+        io.to(gameID).emit('endSession');
+    });
 
     // Also add disconnect socket
     // socket.on("erasePlayer", async (playerId) => {

@@ -37,17 +37,17 @@
     }
     
     // Game timer
-    useEffect(() => {
-      const timer = setInterval(() => {
-        setGameTime(Math.max(0, gameTime - 1))
-      }, 1000)
+    // useEffect(() => {
+    //   const timer = setInterval(() => {
+    //     setGameTime(Math.max(0, gameTime - 1))
+    //   }, 1000)
 
-      if (gameTime === 0) {
-        router.push(`/results/${gameId}`)
-      }
+    //   if (gameTime === 0) {
+    //     router.push(`/results/${gameId}`)
+    //   }
 
-      return () => clearInterval(timer)
-    }, [gameTime, gameId, router, setGameTime])
+    //   return () => clearInterval(timer)
+    // }, [gameTime, gameId, router, setGameTime])
 
     // Camera setup
     useEffect(() => {
@@ -101,6 +101,10 @@
       }
 
       websocket.on("updateRoom", handleUpdateRoom);
+      websocket.on('endSession', () => router.push(`/results/${gameId}`));
+      websocket.on('updateTimer', (timerVal) => {
+        setGameTime(timerVal);
+      });
     },[]);
 
     async function detectColor() {
@@ -430,7 +434,10 @@
           {/* Exit Button */}
           {currentPlayer.isHost && (
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-              <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
+              <Button onClick={() => {
+                websocket.emit('endGame', gameId);
+                router.push(`/results/${gameId}`);
+            }} variant="destructive" className="w-full">
                 End Game
               </Button>
             </div>
