@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
-import { JoinRoomResponse, Player } from "./types";
+import { JoinRoomResponse, Player, GameEventData } from "./types";
 
 
 interface ServerToClientEvents {
@@ -32,7 +32,7 @@ interface ClientToServerEvents {
   getRoomInfo : (roomID:string,  callback?: (response: any) => void)=>void;
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
 
-  //start game logic
+  //start/end game logic
   startGame: (gameID:string)=>void;
   startGameMessageRecievied: (gameID:string,playerID:string)=>void;
 
@@ -40,7 +40,8 @@ interface ClientToServerEvents {
   endGame: (gameId: string)=>void;
 
   //game logic
-  triggerEvent:(data:{gameID:string,eventType:number,eventData:JSON})=>void
+  triggerEvent:(data:{gameID:string,eventType:number,eventData:GameEventData})=>void
+
   //disconnect
   erasePlayer:(data:{playerId: string})=>void;
 }
@@ -64,7 +65,7 @@ export function createNewServer(httpServer:HTTPServer){
         SocketData
     >(httpServer, {
       cors:{
-        origin:["http://localhost:5500","http://localhost:3000",
+        origin:["http://localhost:5500","http://localhost:3004",
         "https://lasertag.vercel.app/"],
         methods: ["GET", "POST"]
       }

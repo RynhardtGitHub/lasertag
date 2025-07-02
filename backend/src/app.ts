@@ -40,7 +40,7 @@ export interface TriggerEventPayload {
         name: string;
         damage: number;
         range: number;
-      };
+      },
       [key: string]: any;
     };
   }
@@ -86,7 +86,9 @@ io.on("connection", (socket) => {
     socket.on("create",(playerName)=>{
         let playerId = makeid(1,numberWhitelist);
         playerId += makeid(1,letterWhitelist);
+        //TODO CHANGE BACK
 
+        // playerId = "1"
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
         console.log(`Created player with id: ${playerId}`)
 
@@ -232,6 +234,8 @@ io.on("connection", (socket) => {
                     // hit the victim
                     if (p.shootId === victimId) {
                       const newHealth = p.health - damage;
+
+                      console.log(`Hit player: ${victimId}`)
                       return {
                         ...p,
                         health: newHealth,
@@ -239,7 +243,8 @@ io.on("connection", (socket) => {
                       };
                     }
                     // reward the shooter
-                    else if (p.shootId === shooterId) {
+                    if (p.shootId === shooterId) {
+                        console.log(`${shooterId} points: ${p.score + 5}`)
                       return {
                         ...p,
                         score: p.score + 5
@@ -258,7 +263,6 @@ io.on("connection", (socket) => {
             default:
                 break;
         }
-
     })
 
     socket.on("startGame", (gameID)=>{

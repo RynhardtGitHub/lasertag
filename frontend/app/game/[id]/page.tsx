@@ -6,27 +6,65 @@
   import { Card, CardContent } from "@/components/ui/card"
   import { Badge } from "@/components/ui/badge"
   import { useGameStore } from "@/lib/store"
-  import { Zap, Heart, Users, Clock } from "lucide-react"
+  import "@tensorflow/tfjs-backend-webgl"; // Ensure WebGL backend is used for TensorFlow.js
+  import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
   import Tesseract from "tesseract.js";
   import { getWebSocket } from "@/lib/websocket"
+  import * as tf from "@tensorflow/tfjs";
+  import { detectImage } from "./utils/detect";
 
   export default function GamePage() {
-    const websocket = getWebSocket();
     const params = useParams()
     const router = useRouter()
     const gameId = params.id as string
+    const webSocket = getWebSocket();  
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [cameraActive, setCameraActive] = useState(false)
+    const [roomPlayers, setRoomPlayers] = useState<typeof players>([]);
+
     const [detectedColor, setDetectedColor] = useState<string | null>(null)
     const [lastAction, setLastAction] = useState<string>("")
 
     const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+    
+    //YOLO START
+    const [loading, setLoading] = useState({ loading: true, progress: 0 }); // loading state
+    
+    const [net,setNet]= useState<tf.GraphModel | null>(null); // YOLO model state
+    const [inputShape,setInputShape] = useState<any>(null) // YOLO model state
+    const [modelReady, setModelReady] = useState(false);
 
+    // references
+    const imageRef = useRef(null);
+    const cameraRef = useRef(null);
+    //YOLO END
+
+    // model configs
+    const modelName = "yolov5n";
+    const classThreshold = 0.5;
+    
     function sleep(ms: number | undefined) {
       return new Promise(resolve => setTimeout(resolve, ms));
     }
+
+    const audioCtx = useRef(new (window.AudioContext || window.webkitAudioContext)());
+
+    const loadAndPlaySound = async (url = "/sounds/pew.mp3") => {
+      try {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await audioCtx.current.decodeAudioData(arrayBuffer);
+
+        const source = audioCtx.current.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioCtx.current.destination);
+        source.start(0);
+      } catch (err) {
+        console.error("Failed to play sound:", err);
+      }
+    };
 
     // Weapon setup
     const weapons = [
@@ -45,8 +83,137 @@
     detectColor is also performing OCR
     */
     async function scanUser() {
-      await detectColor();
+      await loadAndPlaySound(); // Play sound on click
+
+      console.log(net, inputShape, cameraActive, videoRef.current, canvasRef.current)
+      if (!cameraActive || !videoRef.current || !canvasRef.current || net == null) return
+
+      // Pass the callback function to handle detected players
+      detectImage(
+        videoRef.current, 
+        net, 
+        inputShape, 
+        classThreshold, 
+        canvasRef.current,
+        handlePlayerDetected // New callback function
+      );
+      
+      // You can still call detectColor if you want to keep the color detection
+      // await detectColor();
+  }
+  const handlePlayerDetected = async (playerId:string, detectedColor=null) => {
+  console.log("Player ID detected:", playerId);
+
+  if (!currentPlayer) return;
+
+  console.log("Player detected in bounding box:", playerId);
+  console.log("Detected color:", detectedColor);
+
+  const now = Date.now();
+  const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
+
+  // Prevent spam (1 second cooldown)
+  if (now - lastActionTime < 1000) return;
+
+  localStorage.setItem("lastActionTime", now.toString());
+
+  setLastAction(`Targeting ${playerId}...`);
+  
+  try {
+    const matchedPlayer = roomPlayers.find(
+      (player) => player.shootId.toLowerCase() === playerId.toLowerCase()
+    );
+
+    console.log("Matched player:", matchedPlayer);
+    console.log("Room players:", roomPlayers);
+
+    if (matchedPlayer) {
+      console.log("Target acquired:", matchedPlayer.name);
+
+      // Emit the shoot event
+      webSocket.emit("triggerEvent", {
+        gameID: `${gameId}`,
+        eventType: 0,
+        eventData: {
+          shooter: currentPlayer?.shootId,
+          victim: matchedPlayer?.shootId,
+          weapon: playerWeapon.damage,
+        }
+      });
+
+      console.log("Shoot event triggered for", matchedPlayer.name);
+      setLastAction(`Shot ${matchedPlayer.name}!`);
+    } else {
+      setLastAction("Missed! No player found.");
     }
+  } catch (err) {
+    console.error("Failed to process player detection:", err);
+  }
+
+  setTimeout(() => setLastAction(""), 2000);
+};
+
+
+
+    useEffect(() => {
+        tf.ready().then(async () => {
+          const yolov5 = await tf.loadGraphModel(
+            `/${modelName}_web_model/model.json`,
+            {
+              onProgress: (fractions) => {
+                setLoading({ loading: true, progress: fractions }); // set loading fractions
+              },
+            }
+          ); // load model
+    
+          // warming up model
+          // const dummyInput = tf.ones(yolov5.inputs[0].shape);
+          // const warmupResult = await yolov5.executeAsync(dummyInput);
+          // tf.dispose(warmupResult); // cleanup memory
+          // tf.dispose(dummyInput); // cleanup memory
+    
+          setLoading({ loading: false, progress: 1 });
+          setNet(yolov5); // set model to state
+
+          // set input shape
+          setInputShape(yolov5.inputs[0].shape); // get input shape
+          setModelReady(true); // ✅ model is ready
+        });
+      }, []);
+
+    
+    useEffect(() => {
+      console.log("modelYOLO:", inputShape);
+      console.log("modelYOLO:", net);
+    }, [net, inputShape]);
+
+    useEffect(() => {
+      webSocket.emit("getRoomInfo", gameId);
+
+      const handleUpdateRoom = (playersFromServer: typeof players) => {
+        useGameStore.getState().setPlayers(playersFromServer);
+        setRoomPlayers(playersFromServer);
+      };
+
+      webSocket.on("updateRoom", handleUpdateRoom);
+
+      return () => {
+        webSocket.off("updateRoom", handleUpdateRoom); // clean up listener
+      };
+    }, [webSocket, gameId]);
+    
+    // Game timer
+    useEffect(() => {
+      const timer = setInterval(() => {
+        setGameTime(Math.max(0, gameTime - 1))
+      }, 1000)
+
+      if (gameTime === 0) {
+        router.push(`/results/${gameId}`)
+      }
+
+      return () => clearInterval(timer)
+    }, [gameTime, gameId, router, setGameTime])
 
     // Camera setup
     useEffect(() => {
@@ -56,7 +223,7 @@
             video: {
               facingMode: "environment",
               width: { ideal: 1280 },
-              height: { ideal: 720 },
+              height: { ideal: 720 }
             },
           })
 
@@ -71,7 +238,7 @@
 
       startCamera();
 
-      if (cameraActive && videoRef.current && canvasRef.current) {
+      if (cameraActive && videoRef.current && canvasRef.current && modelReady) {
         console.log("Camera, videoRef, and canvasRef are ready. Attaching click listener.")
         window.addEventListener('mousedown', scanUser);
       } else {
@@ -92,16 +259,16 @@
         window.removeEventListener('mousedown', scanUser);
         console.log("Cleaning up camera and click listener.");
       }
-    }, [cameraActive, videoRef, canvasRef])
+    }, [cameraActive, videoRef, canvasRef,modelReady])
 
     useEffect(() => {
       const handleUpdateRoom = (playersFromServer : typeof players)=>{
         useGameStore.getState().setPlayers(playersFromServer);
       }
 
-      websocket.on("updateRoom", handleUpdateRoom);
-      websocket.on('endSession', () => router.push(`/results/${gameId}`));
-      websocket.on('updateTimer', (timerVal) => {
+      webSocket.on("updateRoom", handleUpdateRoom);
+      webSocket.on('endSession', () => router.push(`/results/${gameId}`));
+      webSocket.on('updateTimer', (timerVal) => {
         setGameTime(timerVal);
 
         // Randomise weapon on two min remaining
@@ -111,156 +278,6 @@
         }
       });
     },[]);
-
-    async function detectColor() {
-      if (!cameraActive || !videoRef.current || !canvasRef.current) return
-
-      console.log('Clicked')
-
-      const video = videoRef.current!
-      const canvas = canvasRef.current!
-      const ctx = canvas.getContext("2d")!
-
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-
-      ctx.drawImage(video, 0, 0)
-
-      // Sample center area of the image
-      const centerX = canvas.width / 2
-      const centerY = canvas.height / 2
-      const sampleSize = 150
-
-      const imageData = ctx.getImageData(
-        centerX - sampleSize / 2,
-        centerY - sampleSize / 2,
-        sampleSize,
-        sampleSize
-      )
-
-      const ocrCanvas = document.createElement("canvas")
-      ocrCanvas.width = sampleSize
-      ocrCanvas.height = sampleSize
-      ocrCanvas.getContext("2d")!.putImageData(imageData, 0, 0)
-
-      let r = 0,
-        g = 0,
-        b = 0
-      const pixels = imageData.data.length / 4
-
-      for (let i = 0; i < imageData.data.length; i += 4) {
-        r += imageData.data[i]
-        g += imageData.data[i + 1]
-        b += imageData.data[i + 2]
-      }
-
-      r = Math.floor(r / pixels)
-      g = Math.floor(g / pixels)
-      b = Math.floor(b / pixels)
-
-      // Detect dominant color
-      const threshold = 50
-      if (r > g + threshold && r > b + threshold) {
-        setDetectedColor("red")
-        handleColorAction("red")
-      } else if (g > r + threshold && g > b + threshold) {
-        setDetectedColor("green")
-        handleColorAction("green")
-      } else if (b > r + threshold && b > g + threshold) {
-        setDetectedColor("blue")
-        handleColorAction("blue")
-      } else {
-        setDetectedColor(null)
-      }
-
-      // OCR: Detect numbers
-      try {
-        console.log('OCR:')
-        const {
-          data: { text },
-        } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "ABPURM0123456789" },})
-
-        console.log(`Tesseract text: ${text}`)
-        const detectedNumber = text.trim()
-        if (detectedNumber) {
-          // console.log("Detected number:", detectedNumber)
-          // handleNumberAction(detectedNumber)
-          const matchedDigits = detectedNumber.match(/[ABPURM0-9]+/gi) // returns array of digit sequences
-
-          if (matchedDigits && matchedDigits.length > 0) {
-            const number = matchedDigits[0] // pick first sequence
-            console.log("Detected number:", number)
-
-            // Optional: only accept 1–4 digit numbers
-            if (number.length >= 1 && number.length <= 2) {
-              handleNumberAction(number)
-            }
-          } else {
-            console.log("No valid number detected.")
-          }
-        }
-      } catch (error) {
-        console.error("OCR error:", error)
-      }
-    }
-
-    const handleNumberAction = async (detectedNumber: string) => {
-      if (!currentPlayer) return
-
-      const now = Date.now()
-      const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
-
-      // Prevent spam (1 second cooldown)
-      if (now - lastActionTime < 1000) return
-
-      localStorage.setItem("lastActionTime", now.toString())
-
-      setLastAction(`${detectedNumber}`)
-      try {
-        const response = await new Promise<{ success?: boolean, activePlayers?: any[], error?: string }>((resolve, reject) => {
-          websocket.emit("getRoomInfo", gameId, (res) => {
-            if (res?.error) return reject(res.error);
-            resolve(res);
-          });
-        });
-
-        console.log("Room data:", response.activePlayers);
-
-        const roomPlayers = response.activePlayers || [];
-
-        // Look for a player with matching shootId
-        const matchedPlayer = roomPlayers.find(
-          (player) => player.shootId.toLowerCase() === detectedNumber.toLowerCase()
-        );
-
-        if (matchedPlayer) {
-          console.log("Target acquired:", matchedPlayer.name);
-
-          websocket.emit("triggerEvent", {
-            gameID: `${gameId}`,
-            eventType: 0,
-            eventData: {
-              weapon: playerWeapon,
-              victim: detectedNumber,
-              shooter: currentPlayer?.shootId,
-            }}
-          );
-
-          setLastAction(`Shot ${matchedPlayer.name}!`);
-        } else {
-          // console.log("No matching shoot ID found for", detectedNumber);
-          setLastAction("Missed! No player found.");
-        }
-
-        // websocket.emit("shootPlayer", detectedNumber);
-
-      } catch (err) {
-        console.error("Failed to get room info:", err);
-      }
-      // websocket.emit('shootPlayer', detectedNumber);
-
-      setTimeout(() => setLastAction(""), 2000)
-    }
 
     const handleColorAction = (color: string) => {
       if (!currentPlayer) return
@@ -323,8 +340,9 @@
       <div className="min-h-screen bg-black relative overflow-hidden">
         {/* Camera View */}
         <div className="absolute inset-0">
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-          <canvas ref={canvasRef} className="hidden" />
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
+          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+
 
           {/* Crosshair */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -442,7 +460,7 @@
           {currentPlayer.isHost && (
             <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
               <Button onClick={() => {
-                websocket.emit('endGame', gameId);
+                webSocket.emit('endGame', gameId);
                 router.push(`/results/${gameId}`);
             }} variant="destructive" className="w-full">
                 End Game
