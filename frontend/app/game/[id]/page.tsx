@@ -719,6 +719,18 @@ useEffect(() => {
               </Button>
             </div>
           )}
+
+          {!currentPlayer.isAlive && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50 pointer-events-auto">
+              <Card className="bg-red-900/90 border-red-600 p-8 text-center animate-pulse">
+                <span className="text-white text-4xl font-bold mb-4">YOU ARE DEAD!</span>
+                <CardContent className="text-red-200 text-lg">
+                  <p>Wait for the next round or for a revive.</p>
+                  <p className="mt-2">No more shooting for you.</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     )

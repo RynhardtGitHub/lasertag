@@ -15,9 +15,6 @@ let roomsPlayers: { [key: string]: Array<Player> } = {}
 let roomTimers: {[key:string] : number} = {};
 let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
 let defaultTime = 300;
-let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
-
-let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
 app.use(express.json());
@@ -249,6 +246,17 @@ io.on("connection", (socket) => {
                     return p;
                   });
                   roomsPlayers[data.gameID] = updatedPlayers;
+
+                  if (roomsPlayers[data.gameID]) {
+                    const alivePlayersCount = roomsPlayers[data.gameID].filter(p => p.isAlive).length;
+                    console.log(`Alive players in game ${data.gameID}: ${alivePlayersCount}`);
+
+                    if (alivePlayersCount <= 1) { // If 1 or 0 players are alive (0 could happen if last two die simultaneously)
+                        console.log(`Game ${data.gameID} ending: Only ${alivePlayersCount} player(s) remaining.`);
+                        io.to(data.gameID).emit("endSession");
+                        //delete roomsPlayers[data.gameID];
+                    }
+                  }
                 break;
 
             case 1: // heal event
