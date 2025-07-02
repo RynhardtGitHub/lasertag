@@ -12,9 +12,9 @@ const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
 let roomsPlayers: { [key: string]: Array<Player> } = {}
-let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
-
 let assignedPlayerIds: Array<string> = [];
+const room = "";
+
 
 app.use(cors());
 app.use(express.json());
@@ -69,6 +69,7 @@ io.on("connection", (socket) => {
 
     let numberWhitelist = '123';
     let letterWhitelist = 'APU';
+    let currentRoomID: string | null = null;
 
     socket.on("create",(playerName)=>{
         // let newPlayer = createPlayer(socket.id,playerName,{isHost:true,isSpectator:false});
@@ -80,11 +81,28 @@ io.on("connection", (socket) => {
         let playerId = makeid(1,numberWhitelist);
         playerId += makeid(1,letterWhitelist);
 
+        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
+            // Max number of players reached
+            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            if (assignedPlayerIds.length >= Math.pow(3,2)) {
+                return {
+                    success: false,
+                    error: true,
+                    message: 'Maximum number of players reached',
+                }
+            }
+            // playerId = makeid(2,playerIdWhitelist);
+            playerId = makeid(1,numberWhitelist);
+            playerId += makeid(1,letterWhitelist);
+        }
+
         let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
+        assignedPlayerIds.push(playerId);
         console.log(`Created player with id: ${playerId}`)
 
         const roomID = makeid(6); 
         socket.join(roomID)
+        currentRoomID = roomID;
         roomsPlayers[roomID]=[newPlayer];
 
         socket.emit("sendRoom", roomID,[]);
@@ -132,24 +150,29 @@ io.on("connection", (socket) => {
         // let playerIdWhitelist = 'APURM0123456789';
         // let playerId = makeid(2,playerIdWhitelist);
 
-        if (!playerExists) {
-            const players = roomsPlayers[data.gameID];
-            if (players.length >= numberWhitelist.length * letterWhitelist.length){
-                console.warn(`Max players for game ${data.gameID} reached`);
-                if (typeof callback === "function") {
-                    callback({ success: false, message: "Room is full." });
-                }
-                return;
-            }
-            const idExists = (id: string) => players.some(p => p.shootId === id);
-            let playerId;
-            do {
-                playerId = makeid(1, numberWhitelist) + makeid(1, letterWhitelist);
-            } while (idExists(playerId));
+        /* Sus workaround to creating an id with one number and lettter */
+        let playerId = makeid(1,numberWhitelist);
+        playerId += makeid(1,letterWhitelist);
 
+        while (assignedPlayerIds.includes(playerId)) { // Will cause infinite loop if too many players connect
+            // Max number of players reached
+            // if (assignedPlayerIds.length >= Math.pow(playerIdWhitelist.length,2)) {
+            if (assignedPlayerIds.length >= Math.pow(3,2)) {
+                return {
+                    success: false,
+                    error: true,
+                    message: 'Maximum number of players reached',
+                }
+            }
+            // playerId = makeid(2,playerIdWhitelist);
+            playerId = makeid(1,numberWhitelist);
+            playerId += makeid(1,letterWhitelist);
+        }
+
+
+        if (!playerExists) {
             const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
             roomsPlayers[data.gameID].push(newPlayer);
-            console.log(`New player joined with ID: ${playerId}`)
         }
 
         if (typeof callback === "function") {
@@ -158,7 +181,7 @@ io.on("connection", (socket) => {
 
         const activePlayers= roomsPlayers[data.gameID].filter((p) => !p.isSpectator)
         io.to(data.gameID).emit("updateRoom", activePlayers)
-
+        currentRoomID = data.gameID
     })
 
     socket.on("spectate",async (data,callback)=>{
@@ -205,13 +228,53 @@ io.on("connection", (socket) => {
      * 1 => heal
      * 2 => ...
      */
+
+    //
+
     socket.on("triggerEvent",(data)=>{
-        if (data.eventType<0){
+        if (data.eventType<0 || !currentRoomID){
             return;
         }
         switch (data.eventType) {
             case 0: // shoot event
-                console.log("shoot him")
+                console.log("shoot him");
+  
+                //finds shot player to adjust health
+                const targetId = data.eventData.targetId; // assuming array or key
+                console.log(data.eventData.targetId);
+
+                const shotPlayer = roomsPlayers[currentRoomID]?.find(
+                    (player) => player.shootId === targetId
+                );
+                console.log(shotPlayer?.name + "!!!!");
+
+                const shooterId = data.eventData.shooterId;
+                const shooter = roomsPlayers[currentRoomID]?.find(
+                    (player) => player.shootId === shooterId
+                );
+                console.log(shooter?.health)
+
+                //search for damage COMING SOON
+                let damage = 55;
+
+                if(shotPlayer && shooter){
+                    if(shotPlayer.health >= damage){ //just a shot
+                        shotPlayer.health = shotPlayer.health - damage;
+                    }
+                    else{ //player dies
+                        shotPlayer.health = 0;
+                        shotPlayer.isAlive = false; 
+                        shooter.score += 1;
+                        console.log(`${shooter.name} killed ${shotPlayer.name}`);
+                    }
+                    
+                    shooter.score += 1;
+                }      
+                else{
+                    console.log("Bad shot");
+                }  
+                console.log(shooter?.health)    
+
                 break;
 
             case 1: // heal event
@@ -220,37 +283,8 @@ io.on("connection", (socket) => {
             default:
                 break;
         }
-
-        if (data.eventType==0){
-            roomsPlayers[data.gameID].forEach((player) => {
-                if (data.eventData.targetId === undefined)
-
-                if (player.id === data.eventData.targetId) {
-                    player.health -= 10; // Example damage
-                    
-                    /**
-                     * 
-                        shooterId: currentPlayer.id,
-                        targetId: matchedPlayer.id,
-                        shootId: detectedNumber,
-                     */
-                    console.log(`Player ${player.name} shot! Health: ${player.health}`);
-                }
-            });
-
-             let object = {
-                players: roomsPlayers[data.gameID],
-                eventType: data.eventType
-            };
-
-            io.to(data.gameID).emit("sendGameState", {gameID: data.gameID, gameData: object});
-            console.log("SHOOT EVENT");
-
-        }else if (data.eventType==1){
-            console.log("HEAL EVENT"); 
-        }else{
-            console.log("INVALID EVENT");
-        }
+        console.log(roomsPlayers[currentRoomID])
+        io.to(currentRoomID).emit("updateRoom", roomsPlayers[currentRoomID]);
     })
 
     socket.on("startGame", (gameID)=>{
@@ -258,30 +292,6 @@ io.on("connection", (socket) => {
             return;
         }
         io.to(gameID).emit("readyUp", gameID);
-
-        console.log(roomsPlayers[gameID]);
-    })
-
-    socket.on("readyInGame",(data)=>{
-        if (!readyPlayers[data.gameID]) {
-            readyPlayers[data.gameID] = [];
-        }
-
-        // let playerExists = roomsPlayers[data.gameID].some((p) => p.id === socket.id);
-
-        if (!readyPlayers[data.gameID].includes(data.playerID)){
-            readyPlayers[data.gameID].push(data.playerID)
-        }
-
-
-        const allPlayers = roomsPlayers[data.gameID] ?? [];
-        const allReady = allPlayers.every(p=>readyPlayers[data.gameID].includes(p.id));
-
-        if (allReady){
-            console.log("All ready");
-            console.log(readyPlayers)
-            io.to(data.gameID).emit("beginStartOfGame");
-        }
     })
 
     // Also add disconnect socket

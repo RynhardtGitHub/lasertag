@@ -6,25 +6,33 @@
   import { Card, CardContent } from "@/components/ui/card"
   import { Badge } from "@/components/ui/badge"
   import { useGameStore } from "@/lib/store"
-  import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
+  import { Zap, Heart, Users, Clock } from "lucide-react"
   import Tesseract from "tesseract.js";
   import { getWebSocket } from "@/lib/websocket"
 
   export default function GamePage() {
+    const websocket = getWebSocket();
     const params = useParams()
     const router = useRouter()
     const gameId = params.id as string
-    const webSocket = getWebSocket();  
+    const webSocket = getWebSocket();   
 
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [cameraActive, setCameraActive] = useState(false)
-    const [roomPlayers, setRoomPlayers] = useState<typeof players>([]);
-
     const [detectedColor, setDetectedColor] = useState<string | null>(null)
     const [lastAction, setLastAction] = useState<string>("")
 
-    const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+    //const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+
+    const players = useGameStore((state) => state.players);
+    const currentPlayer = useGameStore((state) => state.currentPlayer);
+    const setPlayers = useGameStore((state) => state.setPlayers);
+    const setGameTime = useGameStore((state) => state.setGameTime);
+    const shootPlayer = useGameStore((state) => state.shootPlayer);
+    const healPlayer = useGameStore((state) => state.healPlayer);
+    const shieldPlayer = useGameStore((state) => state.shieldPlayer);
+    const gameTime = useGameStore((state) => state.gameTime);
 
     function sleep(ms: number | undefined) {
       return new Promise(resolve => setTimeout(resolve, ms));
@@ -35,22 +43,7 @@
     */
     async function scanUser() {
       await detectColor();
-    } 
-
-    useEffect(() => {
-      webSocket.emit("getRoomInfo", gameId);
-
-      const handleUpdateRoom = (playersFromServer: typeof players) => {
-        useGameStore.getState().setPlayers(playersFromServer);
-        setRoomPlayers(playersFromServer);
-      };
-
-      webSocket.on("updateRoom", handleUpdateRoom);
-
-      return () => {
-        webSocket.off("updateRoom", handleUpdateRoom); // clean up listener
-      };
-    }, [webSocket, gameId]);
+    }
     
     // Game timer
     useEffect(() => {
@@ -110,14 +103,28 @@
         console.log("Cleaning up camera and click listener.");
       }
     }, [cameraActive, videoRef, canvasRef])
-
+//typeof players
     useEffect(() => {
-      const handleUpdateRoom = (playersFromServer : typeof players)=>{
-        useGameStore.getState().setPlayers(playersFromServer);
-      }
+  const handleUpdateRoom = (playersFromServer: typeof players) => {
+    setPlayers(playersFromServer);
 
-      webSocket.on("updateRoom", handleUpdateRoom);
-    },[]);
+    // Also re-sync currentPlayer
+    const current = useGameStore.getState().currentPlayer;
+    if (current) {
+      const updatedCurrent = playersFromServer.find(p => p.shootId === current.shootId);
+      if (updatedCurrent) {
+        useGameStore.getState().setCurrentPlayer(updatedCurrent);
+      }
+    }
+  };
+
+  websocket.on("updateRoom", handleUpdateRoom);
+
+  return () => {
+    websocket.off("updateRoom", handleUpdateRoom);
+  };
+}, [setPlayers]);
+
 
     async function detectColor() {
       if (!cameraActive || !videoRef.current || !canvasRef.current) return
@@ -188,12 +195,9 @@
         } = await Tesseract.recognize(ocrCanvas, "eng", {params: { tessedit_char_whitelist: "ABPURM0123456789" },})
 
         console.log(`Tesseract text: ${text}`)
-
-
         const detectedNumber = text.trim()
         if (detectedNumber) {
-          // console.log("Detected number:", detectedNumber)
-          // handleNumberAction(detectedNumber)
+          
           const matchedDigits = detectedNumber.match(/[ABPURM0-9]+/gi) // returns array of digit sequences
 
           if (matchedDigits && matchedDigits.length > 0) {
@@ -216,8 +220,6 @@
     const handleNumberAction = async (detectedNumber: string) => {
       if (!currentPlayer) return
 
-      console.log("Handling number action for:", detectedNumber)
-
       const now = Date.now()
       const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0")
 
@@ -227,38 +229,52 @@
       localStorage.setItem("lastActionTime", now.toString())
 
       setLastAction(`${detectedNumber}`)
-      
       try {
+        const response = await new Promise<{ success?: boolean, activePlayers?: any[], error?: string }>((resolve, reject) => {
+          websocket.emit("getRoomInfo", gameId, (res) => {
+            if (res?.error) return reject(res.error);
+            resolve(res);
+          });
+        });
+
+        console.log("Room data:", response.activePlayers);
+
+        const roomPlayers = response.activePlayers || [];
+
+        // Look for a player with matching shootId
         const matchedPlayer = roomPlayers.find(
           (player) => player.shootId.toLowerCase() === detectedNumber.toLowerCase()
         );
 
-        console.log("Matched player:", matchedPlayer)
-        console.log(roomPlayers)
-
         if (matchedPlayer) {
-          console.log("Target acquired:", matchedPlayer.name);
+          //Checking for debugging purposes
+          //console.log("Target acquired:", matchedPlayer.name);
+          //console.log(matchedPlayer.shootId);
+          //console.log(currentPlayer.shootId);
 
-          webSocket.emit("triggerEvent", {
+          
+          websocket.emit("triggerEvent", {
             gameID: `${gameId}`,
             eventType: 0,
             eventData: {
-              shooterId: currentPlayer.id,
-              targetId: matchedPlayer.id,
-              shootId: detectedNumber,
-            }}
+              shooterId: currentPlayer.shootId,
+              targetId: matchedPlayer.shootId
+            }},
+            
           );
 
-          console.log("Shoot event triggered for", matchedPlayer.name);
-
           setLastAction(`Shot ${matchedPlayer.name}!`);
+
+          // <- This updates your local UI/state
+          websocket.on("updateRoom", (updatedPlayers) => {
+          useGameStore.getState().setPlayers(updatedPlayers);
+          console.log("Updated players:", updatedPlayers)
+          });
+         
         } else {
           // console.log("No matching shoot ID found for", detectedNumber);
           setLastAction("Missed! No player found.");
         }
-
-        // websocket.emit("shootPlayer", detectedNumber);
-
       } catch (err) {
         console.error("Failed to get room info:", err);
       }
@@ -419,7 +435,7 @@
           )}
 
           {/* Weapon Info */}
-          <div className={`absolute ${currentPlayer.isHost ? 'bottom-20' : 'bottom-4'} left-4 right-4`}>
+          <div className="absolute bottom-20 left-4 right-4">
             <Card className="bg-black/70 border-gray-600">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between text-white text-sm">
@@ -444,13 +460,11 @@
           </div>
 
           {/* Exit Button */}
-          {currentPlayer.isHost && (
-            <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
-              <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
-                End Game
-              </Button>
-            </div>
-          )}
+          <div className="absolute bottom-4 left-4 right-4 pointer-events-auto">
+            <Button onClick={() => router.push(`/results/${gameId}`)} variant="destructive" className="w-full">
+              End Game
+            </Button>
+          </div>
         </div>
       </div>
     )
