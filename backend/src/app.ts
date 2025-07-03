@@ -341,9 +341,9 @@ io.on("connection", (socket) => {
           }, 1000); // every second
     })
 
-    socket.on('endGame', (gameID)=>{
-        io.to(gameID).emit('endSession');
-    });
+    // socket.on('endGame', (gameID)=>{
+    //     io.to(gameID).emit('endSession');
+    // });
 
     // Also add disconnect socket
     // socket.on("erasePlayer", async (playerId) => {

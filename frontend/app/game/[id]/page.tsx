@@ -19,8 +19,6 @@
     const router = useRouter()
     const gameId = params.id as string
     const webSocket = getWebSocket();  
-    const websocket = getWebSocket();  
-
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [cameraActive, setCameraActive] = useState(false)
@@ -183,7 +181,7 @@
           if (videoRef.current) {
             videoRef.current.srcObject = stream
             setCameraActive(true)
-            websocket.emit("playerReadyForStream", { gameId });
+            // websocket.emit("playerReadyForStream", { gameId });
           }
         } catch (err) {
           console.error("Error accessing camera:", err)
@@ -218,7 +216,7 @@
 
     useEffect(() => {
     if (!cameraActive || !streamRef.current || !websocket || !videoRef.current?.srcObject) return;
-
+    
     const stream = streamRef.current;
     const peerConnections: { [id: string]: RTCPeerConnection } = {};
     
@@ -367,8 +365,8 @@
       websocket.off("webrtcAnswer", handleWebRTCAnswer);
       websocket.off("webrtcCandidate", handleWebRTCCandidate);
     };
-      }, [cameraActive, gameId, websocket]);
 
+  }, [cameraActive, gameId, websocket]);
 
     useEffect(() => {
       const handleUpdateRoom = (playersFromServer : typeof players)=>{

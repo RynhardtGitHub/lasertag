@@ -24,16 +24,16 @@ export default function SpectatePage() {
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({})
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
   const processingOffers = useRef<Set<string>>(new Set())
+  const streamAssigned = useRef<Set<string>>(new Set());
 
-
-  useEffect(() => {
-    Object.entries(playerStreams).forEach(([playerId, stream]) => {
-      const el = videoRefs.current[playerId]
-      if (!el) {console.log("problem"); return}
-      el.srcObject = stream
-      el.play()
-    });
-  }, [playerStreams]);
+  // useEffect(() => {
+  //   Object.entries(playerStreams).forEach(([playerId, stream]) => {
+  //     const el = videoRefs.current[playerId]
+  //     if (!el) {console.log("problem"); return}
+  //     el.srcObject = stream
+  //     // el.play()
+  //   });
+  // }, [playerStreams]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -157,13 +157,16 @@ export default function SpectatePage() {
         }
 
         // Set stream immediately
-        setPlayerStreams((prev) => {
-          console.log(`🎬 Adding stream for ${playerId}`)
-          return {
-            ...prev,
-            [playerId]: stream,
-          }
-        })
+       setPlayerStreams((prev) => {
+        if (prev[playerId] === stream) {
+          return prev; // Don't update if it's the same stream
+        }
+        console.log(`🎬 Adding stream for ${playerId}`)
+        return {
+          ...prev,
+          [playerId]: stream,
+        }
+      })
 
         // Also try to set video element directly if it exists
         const videoEl = videoRefs.current[playerId]
@@ -181,6 +184,7 @@ export default function SpectatePage() {
           setPlayerStreams((prev) => {
             const newStreams = { ...prev }
             delete newStreams[playerId]
+            streamAssigned.current.delete(playerId)
             return newStreams
           })
         }
@@ -367,8 +371,9 @@ export default function SpectatePage() {
                       <video 
                         ref={el => {
                           videoRefs.current[playerId] = el
-                          if (el && stream) {
+                          if (el && stream && !streamAssigned.current.has(playerId)) {
                             el.srcObject = stream
+                            streamAssigned.current.add(playerId)
                             el.muted = true
                             el.playsInline = true
                             el.autoplay = true
@@ -395,7 +400,7 @@ export default function SpectatePage() {
                           }
                         }}
                         className="w-full aspect-video rounded-md bg-gray-900 border-2 border-gray-600"
-                        onLoadedMetadata={() => console.log(`📹 Video metadata loaded for ${playerId}`)}
+
                         onError={(e) => console.error(`🚫 Video error for ${playerId}:`, e)}
                       />
                       {player && (
