@@ -24,7 +24,9 @@ export default function HomePage() {
   const [currentStatusMessage, setCurrentStatusMessage] = useState<string>(''); // Initial message for webcam
   const [statusMessageType, setStatusMessageType] = useState<'info' | 'success' | 'error'>('info');
   const [hasCapturedColor, setHasCapturedColor] = useState(false); // State to track if color has been captured by THIS player
+  const [hasCaptured, setHasCaptured] = useState(false);
   // --- End of Integrated Color Capture States and Refs ---
+
 
 
   // --- Start of Integrated Color Capture Functions ---
@@ -81,9 +83,46 @@ export default function HomePage() {
     setHexValue(hexColor);
     setColorSwatchColor(hexColor);
     setHasCapturedColor(true); // Mark that color has been captured
+    setHasCaptured(true);
     updateStatusMessage('Color captured! You can now create or join a game.', 'success');
   }, [updateStatusMessage, rgbToHex]);
   // --- End of Integrated Color Capture Functions ---
+
+
+  const handleReset = useCallback(() => {
+  // Reset all color capture states
+  setHasCapturedColor(false);
+  setHasCaptured(false);
+  setRgbValues('---');
+  setHexValue('---');
+  setColorSwatchColor('transparent');
+  
+  // Reset status message
+  updateStatusMessage('Ready to scan again. Position your shirt in the center and click \'Take Photo\'.', 'info');
+
+  // Stop current video stream
+  if (videoRef.current?.srcObject) {
+    const stream = videoRef.current.srcObject as MediaStream;
+    const tracks = stream.getTracks();
+    tracks.forEach((track) => track.stop());
+    videoRef.current.srcObject = null;
+  }
+
+    // Restart webcam after a brief delay to ensure cleanup is complete
+    setTimeout(async () => {
+      if (videoRef.current && playerName.trim()) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          videoRef.current.srcObject = stream;
+          updateStatusMessage('Webcam restarted. Position your shirt in the center and click \'Take Photo\'.', 'info');
+        } catch (err) {
+          console.error('Could not restart webcam:', err);
+          updateStatusMessage('Could not restart webcam. Please refresh the page.', 'error');
+        }
+      }
+    }, 100);
+  }, [updateStatusMessage, playerName]);
+
 
 
   // Effect to start and clean up the webcam stream
@@ -253,6 +292,15 @@ export default function HomePage() {
               >
                 Take Photo & Confirm Color
               </Button>
+
+              {hasCaptured && (
+                  <Button
+                    onClick={handleReset}
+                    className="mt-3 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-75"
+                  >
+                    Retake Photo
+                  </Button>
+                )}
 
               {/* Canvas (hidden) for image processing */}
               <canvas ref={canvasRef} className="hidden"></canvas>
