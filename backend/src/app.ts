@@ -107,13 +107,34 @@ io.on("connection", (socket) => {
         }
 
         const activePlayers= roomsPlayers[roomID].filter((p) => !p.isSpectator)
-        
-        if (callback) {
-            callback({ success: true, activePlayers }); // ✅ only call if it exists
-        }
 
-        io.to(roomID).emit("updateRoom", activePlayers)
-    })
+        activePlayers.forEach((player:Player, index:number) => {
+            console.log("Player in room:", player.shootId, "isAlive:", player.isAlive, "respawnScheduled:",
+                player.respawnScheduled, "health:", player.health);
+
+
+            if (player.health <=0) {
+                console.log(`Scheduling respawn for player ${player.shootId} in room ${roomID}`);
+                player.respawnScheduled = true; // Prevent multiple timers
+                setTimeout(() => {
+                    player.isAlive = true;
+                    player.respawnScheduled = false;
+                    player.health = 100; // Reset health on respawn
+                    console.log(`Player ${player.shootId} respawned in room ${roomID}`);
+
+                    // Optional: emit update to all clients after respawn
+                    const activePlayers = roomsPlayers[roomID].filter((p) => !p.isSpectator);
+                    io.to(roomID).emit("updateRoom", activePlayers);
+                }, 3000); // 3 seconds
+                }
+            });
+        
+            if (callback) {
+                callback({ success: true, activePlayers }); // ✅ only call if it exists
+            }
+
+            io.to(roomID).emit("updateRoom", activePlayers)
+        })
 
 
     socket.on("join",async (data,callback)=>{
@@ -245,8 +266,16 @@ io.on("connection", (socket) => {
                     }
                     // everyone else stays the same
                     return p;
-                  });
-
+                });
+                
+                //check if any players died
+                if (victimId) {
+                  const victim = updatedPlayers.find(p => p.shootId === victimId);
+                  if (victim && victim.health <= 0) {
+                    victim.respawnScheduled = true
+                    console.log(`Player ${victimId} has died.`);
+                  }
+                
                   roomsPlayers[data.gameID] = updatedPlayers;
 
                   if (roomsPlayers[data.gameID]) {
@@ -255,12 +284,12 @@ io.on("connection", (socket) => {
 
                     if (alivePlayersCount <= 1) { // If 1 or 0 players are alive (0 could happen if last two die simultaneously)
                         console.log(`Game ${data.gameID} ending: Only ${alivePlayersCount} player(s) remaining.`);
-                        io.to(data.gameID).emit("endSession");
+                        // io.to(data.gameID).emit("endSession");
                         //delete roomsPlayers[data.gameID];
                     }
                   }
+                }
                 break;
-
             case 1: // heal event
                 let healAmount = data.eventData.healAmount || 20; // Default heal amount=20
                 let playerId = data.eventData.playerId;

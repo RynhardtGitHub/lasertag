@@ -112,21 +112,20 @@ export const renderBoxes = async (
         return;
       }
       onPlayerDetected(centerColor);
+      // const { r, g, b } = centerColor;
+      // const text = `RGB: (${r}, ${g}, ${b})`;
 
-      const { r, g, b } = centerColor;
-      const text = `RGB: (${r}, ${g}, ${b})`;
-
-      // Draw color info with better visibility
-      ctx.save();
-      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-      ctx.fillRect(canvasCenterX + 15, canvasCenterY - 30, 150, 25);
+      // // Draw color info with better visibility
+      // ctx.save();
+      // ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      // ctx.fillRect(canvasCenterX + 15, canvasCenterY - 30, 150, 25);
       
-      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-      ctx.fillStyle = brightness > 125 ? "white" : "yellow";
-      ctx.font = "14px Arial";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, canvasCenterX + 20, canvasCenterY - 17);
-      ctx.restore();
+      // const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      // ctx.fillStyle = brightness > 125 ? "white" : "yellow";
+      // ctx.font = "14px Arial";
+      // ctx.textBaseline = "middle";
+      // ctx.fillText(text, canvasCenterX + 20, canvasCenterY - 17);
+      // ctx.restore();
 
       // Draw crosshair
       ctx.strokeStyle = "white";
