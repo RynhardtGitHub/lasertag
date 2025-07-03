@@ -18,22 +18,14 @@ export default function SpectatePage() {
 
 
   const { players, gameTime, setPlayers, setGameId, setGameTime } = useGameStore();
-
   const [socket, setSocket] = useState<ReturnType<typeof getWebSocket> | null>(null)
   const [playerStreams, setPlayerStreams] = useState<Record<string, MediaStream>>({})
   const peerConnections = useRef<Record<string, RTCPeerConnection>>({})
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
   const processingOffers = useRef<Set<string>>(new Set())
   const streamAssigned = useRef<Set<string>>(new Set());
+  const [timerId, setTimerId] = useState<number | null>(null)
 
-  // useEffect(() => {
-  //   Object.entries(playerStreams).forEach(([playerId, stream]) => {
-  //     const el = videoRefs.current[playerId]
-  //     if (!el) {console.log("problem"); return}
-  //     el.srcObject = stream
-  //     // el.play()
-  //   });
-  // }, [playerStreams]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -238,9 +230,6 @@ export default function SpectatePage() {
     }
   }, [gameId])
 
-  // Game timer setup
-  const [timerId, setTimerId] = useState<number | null>(null)
-
   // Fetch data every two seconds
   useEffect(() => {
     // guard: don’t start polling until we know our gameId
@@ -269,6 +258,7 @@ export default function SpectatePage() {
   webSocket.on('updateTimer', (timerVal) => {
     setGameTime(timerVal);
   });
+  
   webSocket.on('endSession', () => router.push(`/results/${gameId}`));
 
   const formatTime = (seconds: number) => {

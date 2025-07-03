@@ -1,64 +1,64 @@
-  "use client"
+"use client"
 
-  import { useEffect, useRef, useState } from "react"
-  import { useParams, useRouter } from "next/navigation"
-  import { Button } from "@/components/ui/button"
-  import { Card, CardContent } from "@/components/ui/card"
-  import { Badge } from "@/components/ui/badge"
-  import { useGameStore, Player } from "@/lib/store"
-  import "@tensorflow/tfjs-backend-webgl"; // Ensure WebGL backend is used for TensorFlow.js
-  import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
-  import { getWebSocket } from "@/lib/websocket"
-  import * as tf from "@tensorflow/tfjs";
-  import { detectImage } from "./utils/detect";
-  import { getClosestColor, hexToRgb, rgbToHex ,findClosestColor, Color} from "@/lib/utils"
+import { useEffect, useRef, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { useGameStore, Player } from "@/lib/store"
+import "@tensorflow/tfjs-backend-webgl"; // Ensure WebGL backend is used for TensorFlow.js
+import { Zap, Heart, Users, Clock, Coins } from "lucide-react"
+import { getWebSocket } from "@/lib/websocket"
+import * as tf from "@tensorflow/tfjs";
+import { detectImage } from "./utils/detect";
+import {hexToRgb, rgbToHex, Color} from "@/lib/utils"
 
 
-  export default function GamePage() {
-    const params = useParams()
-    const router = useRouter()
-    const gameId = params.id as string
-    const webSocket = getWebSocket(); 
-    const websocket = getWebSocket();
-    const videoRef = useRef<HTMLVideoElement>(null)
-    const canvasRef = useRef<HTMLCanvasElement>(null)
-    const [cameraActive, setCameraActive] = useState(false)
-    const [roomPlayers, setRoomPlayers] = useState<typeof players>([]);
+export default function GamePage() {
+  const params = useParams()
+  const router = useRouter()
+  const gameId = params.id as string
+  const webSocket = getWebSocket(); 
+  const websocket = getWebSocket();
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [cameraActive, setCameraActive] = useState(false)
+  const [roomPlayers, setRoomPlayers] = useState<typeof players>([]);
 
-    const [detectedColor, setDetectedColor] = useState<string | null>(null)
-    const [lastAction, setLastAction] = useState<string>("")
-    const streamRef = useRef<MediaStream | null>(null);
+  const [detectedColor, setDetectedColor] = useState<string | null>(null)
+  const [lastAction, setLastAction] = useState<string>("")
+  const streamRef = useRef<MediaStream | null>(null);
 
-    //const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
-    const players = useGameStore((state) => state.players);
-    // const currentPlayer = useGameStore((state) => state.currentPlayer);
-    const { currentPlayer, setCurrentPlayer } = useGameStore();
-    const setPlayers = useGameStore((state) => state.setPlayers);
-    const setGameTime = useGameStore((state) => state.setGameTime);
-    const shootPlayer = useGameStore((state) => state.shootPlayer);
-    const healPlayer = useGameStore((state) => state.healPlayer);
-    const shieldPlayer = useGameStore((state) => state.shieldPlayer);
-    const gameTime = useGameStore((state) => state.gameTime);
+  //const { players, currentPlayer, gameTime, setGameTime, shootPlayer, healPlayer, shieldPlayer } = useGameStore();
+  const players = useGameStore((state) => state.players);
+  // const currentPlayer = useGameStore((state) => state.currentPlayer);
+  const { currentPlayer, setCurrentPlayer } = useGameStore();
+  const setPlayers = useGameStore((state) => state.setPlayers);
+  const setGameTime = useGameStore((state) => state.setGameTime);
+  const shootPlayer = useGameStore((state) => state.shootPlayer);
+  const healPlayer = useGameStore((state) => state.healPlayer);
+  const shieldPlayer = useGameStore((state) => state.shieldPlayer);
+  const gameTime = useGameStore((state) => state.gameTime);
 
+
+  const [loading, setLoading] = useState({ loading: true, progress: 0 }); // loading state
+    //YOLO START
+  const [net,setNet]= useState<tf.GraphModel | null>(null); // YOLO model state
+  const [inputShape,setInputShape] = useState<any>(null) // YOLO model state
+  const [modelReady, setModelReady] = useState(false);
+  let damageAmplifier = 1; // Default damage multiplier
+
+  // references
+  const imageRef = useRef(null);
+  const cameraRef = useRef(null);
   
-    const [loading, setLoading] = useState({ loading: true, progress: 0 }); // loading state
-      //YOLO START
-    const [net,setNet]= useState<tf.GraphModel | null>(null); // YOLO model state
-    const [inputShape,setInputShape] = useState<any>(null) // YOLO model state
-    const [modelReady, setModelReady] = useState(false);
-    let damageAmplifier = 1; // Default damage multiplier
 
-    // references
-    const imageRef = useRef(null);
-    const cameraRef = useRef(null);
+  // model configs
+  const modelName = "yolov5n";
+  const classThreshold = 0.5;
+  //YOLO END
     
-
-    // model configs
-    const modelName = "yolov5n";
-    const classThreshold = 0.5;
-    //YOLO END
-    
-    //USE EFFECTS START
+  //USE EFFECTS START
   useEffect(() => {
     websocket.emit("getRoomInfo",gameId);
 
@@ -154,7 +154,7 @@
     }, [gameId, webSocket, setPlayers])
 
 
-    useEffect(() => {
+  useEffect(() => {
       const timer = setInterval(() => {
       setGameTime(Math.max(0, gameTime - 1));
     }, 1000);
@@ -167,7 +167,7 @@
       }, [gameTime, gameId, router, setGameTime]);
 
     // Camera setup
-    useEffect(() => {
+  useEffect(() => {
       const startCamera = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -215,7 +215,7 @@
       }, [cameraActive, videoRef, canvasRef,modelReady])
 
 
-    useEffect(() => {
+  useEffect(() => {
     if (!cameraActive || !streamRef.current || !websocket || !videoRef.current?.srcObject) return;
     
     const stream = streamRef.current;
@@ -366,10 +366,10 @@
       websocket.off("webrtcAnswer", handleWebRTCAnswer);
       websocket.off("webrtcCandidate", handleWebRTCCandidate);
     };
+    }, [cameraActive, gameId, webSocket]);
 
-  }, [cameraActive, gameId, webSocket]);
 
-    useEffect(() => {
+  useEffect(() => {
       const handleUpdateRoom = (playersFromServer : typeof players)=>{
         useGameStore.getState().setPlayers(playersFromServer);
       }
@@ -423,51 +423,48 @@
       }, []);
 
 
-
     // POWERUPS START
-    const powerups = [
+  const powerups = [
       { name: "Heal Pack", type: "heal", healAmount: 25, icon: "💚", color: "text-green-400" },
       { name: "Shield Boost", type: "shield", shieldAmount: 25, icon: "🛡️", color: "text-cyan-400" },
       { name: "Double Damage", type: "buff", multiplier: 2, duration: 30, icon: "⚔️", color: "text-yellow-400" },
       { name: "Resistance", type: "buff", damageReduction: 0.2, duration: 30, icon: "🛡️", color: "text-purple-400" }
     ];
-
-    const weapons = [
+  const weapons = [
       { name: "Knife", damage: 5, range: 25 },
       { name: "Basic Pistol", damage: 5, range: 50 },
       { name: "Shotgun", damage: 15, range: 75 },
       { name: "Rocket Launcher", damage: 30, range: 200 },
     ];
-
-    const [currentPowerup, setCurrentPowerup] = useState(powerups[0]); // Start with laser gun
-    const [powerupTimer, setPowerupTimer] = useState(30); // 30 seconds until next powerup
-    const [activeBuff, setActiveBuff] = useState<{
-      name: string;
-      type: string;
-      multiplier?: number;
-      damageReduction?: number;
-      duration: number;
-      remainingTime: number;
-      icon: string;
-      color: string;
-    } | null>(null);// Track active buffs
-
-    const [currentWeapon, setCurrentWeapon] = useState(weapons[1]); 
-    const [lastPowerupTime, setLastPowerupTime] = useState(0);
-
+  const [currentPowerup, setCurrentPowerup] = useState(powerups[0]); // Start with laser gun
+  const [powerupTimer, setPowerupTimer] = useState(30); // 30 seconds until next powerup
+  const [activeBuff, setActiveBuff] = useState<{
+    name: string;
+    type: string;
+    multiplier?: number;
+    damageReduction?: number;
+    duration: number;
+    remainingTime: number;
+    icon: string;
+    color: string;
+  } | null>(null);// Track active buffs
+  const [currentWeapon, setCurrentWeapon] = useState(weapons[1]); 
+  const [lastPowerupTime, setLastPowerupTime] = useState(0);
+  const weaponRef = useRef(currentWeapon);
 
 
-    const weaponRef = useRef(currentWeapon);
-    useEffect(() => {
-      weaponRef.current = currentWeapon;
-      console.log("Current weapon updated:", currentWeapon);
-    }, [currentWeapon]);
+  useEffect(() => {
+    weaponRef.current = currentWeapon;
+    console.log("Current weapon updated:", currentWeapon);
+  }, [currentWeapon]);
 
-    const randomiseWeapon = () => {
-      return weapons[Math.floor( Math.random() * weapons.length )];
-    }
 
-    const randomizePowerup = () => {
+  const randomiseWeapon = () => {
+    return weapons[Math.floor( Math.random() * weapons.length )];
+  }
+
+
+  const randomizePowerup = () => {
       const newPowerup = powerups[Math.floor(Math.random() * powerups.length)];
       setCurrentPowerup(newPowerup);
       setPowerupTimer(10); // Reset timer
@@ -485,12 +482,13 @@
       
       return newPowerup;
     };
-    // POWERUPS END
+  // POWERUPS END
 
-    // AUDIO START
-    const audioCtx = useRef(new (window.AudioContext || window.webkitAudioContext)());
+  // AUDIO START
+  const audioCtx = useRef(new (window.AudioContext || window.webkitAudioContext)());
 
-    const loadAndPlaySound = async (url = "/sounds/pew.mp3") => {
+
+  const loadAndPlaySound = async (url = "/sounds/pew.mp3") => {
       try {
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
@@ -505,7 +503,7 @@
       }
     };
 
-    //AUDIO END
+  //AUDIO END
 
   // Function to handle user click and start detection
   async function scanUser() {
@@ -551,99 +549,99 @@
 
 
   const handlePlayerDetected = async (detectedColor:Color) => {
-  if (!currentPlayer) return;
+    if (!currentPlayer) return;
 
-  console.log("Raw detected color:", detectedColor);
+    console.log("Raw detected color:", detectedColor);
 
-  const now = Date.now();
-  const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
+    const now = Date.now();
+    const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
 
-  // Prevent spam (reduce to 800ms for better responsiveness)
-  if (now - lastActionTime < 800) return;
+    // Prevent spam (reduce to 800ms for better responsiveness)
+    if (now - lastActionTime < 800) return;
 
-  try {
-    // Validate detected color
-    if (!detectedColor || typeof detectedColor.r !== 'number' || 
-        detectedColor.r < 0 || detectedColor.r > 255) {
-      console.log("Invalid detected color:", detectedColor);
-      return;
-    }
+    try {
+      // Validate detected color
+      if (!detectedColor || typeof detectedColor.r !== 'number' || 
+          detectedColor.r < 0 || detectedColor.r > 255) {
+        console.log("Invalid detected color:", detectedColor);
+        return;
+      }
 
-    // Get room colors and convert to RGB
-    let roomColours = roomPlayers.map(player => player.shootId.toLowerCase());
-    console.log("Room hex colors:", roomColours);
+      // Get room colors and convert to RGB
+      let roomColours = roomPlayers.map(player => player.shootId.toLowerCase());
+      console.log("Room hex colors:", roomColours);
 
-    let roomRGB = roomColours
-      .map(color => hexToRgb(color))
-      .filter((c) => c !== null);
-    
-    console.log("Room RGB colors:", roomRGB);
-
-    if (roomRGB.length === 0) {
-      console.log("No valid room colors found");
-      return;
-    }
-
-    // Use improved color matching
-    let closestColour = getClosestColorWithThreshold(detectedColor, roomRGB, 100);
-    
-    if (!closestColour) {
-      console.log("No close color match found");
-      setLastAction("No target found.");
-      setTimeout(() => setLastAction(""), 1500);
-      return;
-    }
-    
-    let closestHex = rgbToHex(closestColour.r, closestColour.g, closestColour.b);
-    console.log("Closest match:", closestColour, "->", closestHex);
-
-    const matchedPlayer = roomPlayers.find(
-      (player) => player.shootId.toLowerCase() === closestHex.toLowerCase()
-    );
-
-    // Prevent self-targeting
-    if (matchedPlayer?.shootId === currentPlayer.shootId) {
-      console.log("Cannot target yourself");
-      setLastAction("Cannot target yourself!");
-      setTimeout(() => setLastAction(""), 1500);
-      return;
-    }
-
-    if (matchedPlayer) {
-      console.log("Target acquired:", matchedPlayer.name);
+      let roomRGB = roomColours
+        .map(color => hexToRgb(color))
+        .filter((c) => c !== null);
       
-      // Store action time before emitting
-      localStorage.setItem("lastActionTime", now.toString());
+      console.log("Room RGB colors:", roomRGB);
 
-        // Emit the shoot event
-        //TODO UNCHANGE IF BREAK
-        let tempWeapon = weaponRef.current;
-        tempWeapon.damage = Math.floor(tempWeapon.damage * (activeBuff?.multiplier || 1));
-        console.log("Adjusted weapon damage:", tempWeapon.damage);
+      if (roomRGB.length === 0) {
+        console.log("No valid room colors found");
+        return;
+      }
 
-        webSocket.emit("triggerEvent", {
-          gameID: `${gameId}`,
-          eventType: 0,
-          eventData: {
-            shooter: currentPlayer.shootId,
-            victim: matchedPlayer.shootId,
-            weapon: tempWeapon
-          }
-        });
+      // Use improved color matching
+      let closestColour = getClosestColorWithThreshold(detectedColor, roomRGB, 100);
+      
+      if (!closestColour) {
+        console.log("No close color match found");
+        setLastAction("No target found.");
+        setTimeout(() => setLastAction(""), 1500);
+        return;
+      }
+      
+      let closestHex = rgbToHex(closestColour.r, closestColour.g, closestColour.b);
+      console.log("Closest match:", closestColour, "->", closestHex);
 
-      console.log("Shoot event triggered for", matchedPlayer.name);
-      setLastAction(`🎯 Shot ${matchedPlayer.name}!`);
-    } else {
-      console.log("No matching player found for color:", closestHex);
-      setLastAction("❌ Target not found");
+      const matchedPlayer = roomPlayers.find(
+        (player) => player.shootId.toLowerCase() === closestHex.toLowerCase()
+      );
+
+      // Prevent self-targeting
+      if (matchedPlayer?.shootId === currentPlayer.shootId) {
+        console.log("Cannot target yourself");
+        setLastAction("Cannot target yourself!");
+        setTimeout(() => setLastAction(""), 1500);
+        return;
+      }
+
+      if (matchedPlayer) {
+        console.log("Target acquired:", matchedPlayer.name);
+        
+        // Store action time before emitting
+        localStorage.setItem("lastActionTime", now.toString());
+
+          // Emit the shoot event
+          //TODO UNCHANGE IF BREAK
+          let tempWeapon = weaponRef.current;
+          tempWeapon.damage = Math.floor(tempWeapon.damage * (activeBuff?.multiplier || 1));
+          console.log("Adjusted weapon damage:", tempWeapon.damage);
+
+          webSocket.emit("triggerEvent", {
+            gameID: `${gameId}`,
+            eventType: 0,
+            eventData: {
+              shooter: currentPlayer.shootId,
+              victim: matchedPlayer.shootId,
+              weapon: tempWeapon
+            }
+          });
+
+        console.log("Shoot event triggered for", matchedPlayer.name);
+        setLastAction(`🎯 Shot ${matchedPlayer.name}!`);
+      } else {
+        console.log("No matching player found for color:", closestHex);
+        setLastAction("❌ Target not found");
+      }
+    } catch (err) {
+      console.error("Failed to process player detection:", err);
+      setLastAction("⚠️ Detection error");
     }
-  } catch (err) {
-    console.error("Failed to process player detection:", err);
-    setLastAction("⚠️ Detection error");
-  }
 
-  setTimeout(() => setLastAction(""), 2000);
-};
+    setTimeout(() => setLastAction(""), 2000);
+  };
 
 
 // Enhanced color matching function
@@ -693,11 +691,13 @@
     return null;
   }
 
+
   const formatTime = (seconds: number) => {
       const mins = Math.floor(seconds / 60)
       const secs = seconds % 60
       return `${mins}:${secs.toString().padStart(2, "0")}`
     }
+
 
   const getColorIndicator = () => {
       switch (detectedColor) {
@@ -712,11 +712,11 @@
       }
     }
 
-    if (!currentPlayer) {
+  if (!currentPlayer) {
       return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>
-    }
+  }
 
-    return (
+  return (
 
       <div className="min-h-screen bg-black relative overflow-hidden">
         {/* Camera View */}
@@ -911,4 +911,5 @@
         </div>
       </div>
     )
-  }
+
+}

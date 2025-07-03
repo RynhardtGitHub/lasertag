@@ -9,6 +9,7 @@ import { useGameStore } from "@/lib/store"
 import { getWebSocket } from "@/lib/websocket"
 import { Users, Crown, Play, Copy, Check } from "lucide-react"
 
+//LobbyPage component for the game lobby
 export default function LobbyPage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -75,6 +76,7 @@ export default function LobbyPage() {
         websocket.emit("startGame", gameId);
       }
   }
+
 
   const canStart = isHost && players.length >= 1;
 

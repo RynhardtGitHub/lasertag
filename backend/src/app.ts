@@ -1,24 +1,28 @@
 import express, { Request, Response } from "express";
 import { createServer } from "http";
 import {createNewServer} from "./socketsLogic";
-import cors from "cors";
 import { createPlayer,makeid } from "./misc";
-import { Player } from "./types";
-import { defaultMaxListeners } from "events";
+import { Player,TriggerEventPayload } from "./types";
+import cors from "cors";
 
+// constants
 const app = express();
 const port = process.env.PORT || 3001;
 const httpServer = createServer(app);
 const io = createNewServer(httpServer);
 
+//Tracking some information
 let roomsPlayers: { [key: string]: Array<Player> } = {}
 let roomTimers: {[key:string] : number} = {};
 let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
 let defaultTime = 300;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
+
+//Functions 
 function getRooms(){
     const rooms = io.sockets.adapter.rooms;
     const filteredRooms = [];
@@ -31,19 +35,8 @@ function getRooms(){
     return filteredRooms
 }
 
-export interface TriggerEventPayload {
-    gameID: string,
-    eventType: number;
-    eventData: {
-      weapon?: {
-        name: string;
-        damage: number;
-        range: number;
-      },
-      [key: string]: any;
-    };
-  }
 
+//Routes
 app.get('/', (req: Request, res: Response) => {
     res.send('Hello from Express with TypeScript!');
 });
@@ -53,9 +46,11 @@ app.get("/getLobbies",(req,res)=>{
     res.json(getRooms());
 })
 
+
 app.get("/getRooms",(req,res)=>{
     res.json(roomsPlayers);
 })
+
 
 app.get("/weapons",(req,res)=>{
     const weapons = [
@@ -72,6 +67,7 @@ app.get("/version",(req,res)=>{
     res.json({version: "1.1.2"});
 })
 
+//Socket
 io.on("connection", (socket) => {
     socket.emit("noArg");
     socket.emit("basicEmit", 1, "2", Buffer.from([3]));
@@ -79,8 +75,6 @@ io.on("connection", (socket) => {
         console.log("Ack from client:", e);
     });
 
-    let numberWhitelist = '123';
-    let letterWhitelist = 'APU';
     let maxPlayers = 8;
 
     socket.on("create",(data)=>{
@@ -463,4 +457,4 @@ io.on("connection", (socket) => {
 
 httpServer.listen(port, () => {
     console.log(`HTTP + Socket.IO server running on port ${port}`);
-});    
+});

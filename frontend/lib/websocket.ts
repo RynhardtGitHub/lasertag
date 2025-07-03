@@ -5,7 +5,6 @@ import { io, Socket } from "socket.io-client";
 export class WebSocketClient {
   private socket: Socket;
   public id="";
-
   constructor() {
     //TODO CHANGE THE URL for server socket
     this.socket = io("https://lasertag.onrender.com/", {

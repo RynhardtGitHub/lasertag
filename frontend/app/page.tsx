@@ -25,11 +25,7 @@ export default function HomePage() {
   const [statusMessageType, setStatusMessageType] = useState<'info' | 'success' | 'error'>('info');
   const [hasCapturedColor, setHasCapturedColor] = useState(false); // State to track if color has been captured by THIS player
   const [hasCaptured, setHasCaptured] = useState(false);
-  // --- End of Integrated Color Capture States and Refs ---
 
-
-
-  // --- Start of Integrated Color Capture Functions ---
   const updateStatusMessage = useCallback((msg: string, type: 'info' | 'success' | 'error' = 'info') => {
     setCurrentStatusMessage(msg);
     setStatusMessageType(type);
@@ -124,7 +120,6 @@ export default function HomePage() {
   }, [updateStatusMessage, playerName]);
 
 
-
   // Effect to start and clean up the webcam stream
   useEffect(() => {
     const startWebcam = async () => {
@@ -183,6 +178,7 @@ export default function HomePage() {
     }
   }
 
+
   const joinGame = () => {
     if (!playerName.trim() || !gameId.trim() || !hasCapturedColor || hexValue === '---') {
       updateStatusMessage("Please enter your name, game ID, and capture your shirt color first.", 'info');
@@ -209,6 +205,7 @@ export default function HomePage() {
       updateStatusMessage(`Failed to join game: ${error.message || 'Unknown error'}`, 'error');
     }
   };
+
 
   const spectateGame = () => {
     if (!gameId.trim()) {
@@ -240,6 +237,7 @@ export default function HomePage() {
     'bg-blue-100 text-blue-800'
   }`;
 
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
       <div className="max-w-md mx-auto pt-8">

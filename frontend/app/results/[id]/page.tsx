@@ -1,4 +1,5 @@
 "use client"
+
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -7,13 +8,15 @@ import { useGameStore } from "@/lib/store"
 import { Trophy, Medal, Zap, Heart, Home, RotateCcw } from "lucide-react"
 import { getWebSocket } from "@/lib/websocket"
 
+// This page displays the results of a game, including the winner, final leaderboard, 
+// and game stats summary.
 export default function ResultsPage() {
   const params = useParams()
   const router = useRouter()
   const gameId = params.id as string
   const webSocket = getWebSocket();
-
   const { players, setPlayers, resetGame } = useGameStore()
+  
   webSocket.emit(
     'getRoomInfo',
     gameId,
@@ -28,18 +31,22 @@ export default function ResultsPage() {
     }
   )
 
+
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score)
   const winner = sortedPlayers[0]
+
 
   const playAgain = () => {
     resetGame()
     router.push("/")
   }
 
+
   const goHome = () => {
     resetGame()
     router.push("/")
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">

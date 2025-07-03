@@ -1,6 +1,7 @@
 import * as tf from "@tensorflow/tfjs";
 import { renderBoxes } from "./renderBox";
 
+
 /**
  * Preprocess image / frame before forwarded into the model
  * @param {HTMLVideoElement|HTMLImageElement} source
@@ -51,8 +52,9 @@ const preprocess = (source, modelWidth, modelHeight) => {
   return [input, xRatio, yRatio];
 };
 
+
 /**
- * Function to detect image with OCR integration.
+ * Function to detect objects in an image or video frame using YOLOv5 model
  * @param {HTMLImageElement|HTMLVideoElement} imgSource image/video source
  * @param {tf.GraphModel} net loaded YOLOv5 tensorflow.js model
  * @param {Array} inputShape model input shape
@@ -108,87 +110,4 @@ export const detectImage = async (
   }
   
   tf.engine().endScope(); // end of scoping
-};
-
-/**
- * Function to detect video from every source with OCR integration.
- * @param {HTMLVideoElement} vidSource video source
- * @param {tf.GraphModel} model loaded YOLOv5 tensorflow.js model
- * @param {Array} inputShape model input shape
- * @param {Number} classThreshold class threshold
- * @param {HTMLCanvasElement} canvasRef canvas reference
- * @param {Function} onPlayerDetected callback when player with ID is detected
- */
-export const detectVideo = (
-  vidSource, 
-  model, 
-  inputShape, 
-  classThreshold, 
-  canvasRef, 
-  onPlayerDetected = null
-) => {
-  const [modelWidth, modelHeight] = inputShape.slice(1, 3); // get model width and height
-  
-  let isDetecting = false; // Prevent multiple concurrent detections
-  let animationId = null; // Store animation frame ID for cleanup
-  
-  /**
-   * Function to detect every frame from video
-   */
-  const detectFrame = async () => {
-    // Check if video is still valid and playing
-    if (!vidSource || vidSource.videoWidth === 0 || vidSource.videoHeight === 0) {
-      const ctx = canvasRef.getContext("2d");
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
-      return; // handle if source is closed
-    }
-    
-    if (isDetecting) {
-      animationId = requestAnimationFrame(detectFrame);
-      return;
-    }
-    
-    isDetecting = true;
-    tf.engine().startScope(); // start scoping tf engine
-    
-    try {
-      const [input, xRatio, yRatio] = preprocess(vidSource, modelWidth, modelHeight);
-      
-      const res = await model.executeAsync(input);
-      const [boxes, scores, classes] = res.slice(0, 3);
-      const boxes_data = boxes.dataSync();
-      const scores_data = scores.dataSync();
-      const classes_data = classes.dataSync();
-      
-      await renderBoxes(
-        canvasRef,
-        vidSource, // Pass video source for OCR
-        classThreshold,
-        boxes_data,
-        scores_data,
-        classes_data,
-        [xRatio, yRatio],
-        onPlayerDetected // Pass callback for player detection
-      );
-      
-      tf.dispose(res); // clear memory
-      tf.dispose(input); // clear input tensor
-    } catch (error) {
-      console.error("Video detection error:", error);
-    }
-    
-    tf.engine().endScope(); // end of scoping
-    isDetecting = false;
-    
-    animationId = requestAnimationFrame(detectFrame); // get another frame
-  };
-  
-  detectFrame(); // initialize to detect every frame
-  
-  // Return cleanup function
-  return () => {
-    if (animationId) {
-      cancelAnimationFrame(animationId);
-    }
-  };
 };

@@ -1,13 +1,13 @@
 import { Server } from "socket.io";
 import { Server as HTTPServer } from "http";
-import { JoinRoomResponse, Player } from "./types";
+import { JoinRoomResponse, Player, SocketData } from "./types";
 
 
+// Define the events for the server to client communication
 interface ServerToClientEvents {
   noArg: () => void;
   basicEmit: (a: number, b: string, c: Buffer) => void;
   withAck: (d: string, callback: (e: number) => void) => void;
-  sendGameState : (players:Array<string>,gameID:string,gameStatus:number)=>void;
 
   //room logic
   sendRoom: (room:string,players:Array<string>)=>void;
@@ -15,14 +15,15 @@ interface ServerToClientEvents {
 
   //start game logic
   readyUp: (gameID:string)=>void;
-
+  sendGameState : (players:Array<string>,gameID:string,gameStatus:number)=>void;
 
   //time logic
   updateTimer: (timerVal:number)=>void;
 
   //end game logic
   endSession: ()=>void;
-
+  
+  //WebRTC events
   requestOffer: (data: { spectatorId: string }) => void; // Fixed: should be spectatorId
   offerFromPlayer: (data: { offer: RTCSessionDescriptionInit; from: string }) => void;
   receiveAnswer: (data: { answer: RTCSessionDescriptionInit; from: string }) => void; // Keep for backward compatibility
@@ -35,8 +36,10 @@ interface ServerToClientEvents {
 }
 
 
+// Define the events for the client to server communication
 interface ClientToServerEvents {
   hello: () => void;
+
   //room logic
   create: (data:{playerName:string, shirtColor: string}) => void;
   join : (data:{ gameID: string; playerName: string, shirtColor: string},callback:(res:JoinRoomResponse)=>void)=>void;
@@ -53,6 +56,7 @@ interface ClientToServerEvents {
   //disconnect
   erasePlayer:(data:{playerId: string})=>void;
 
+  //WebRTC events
   playerReadyForStream: (data: { gameId: string }) => void;
   spectatorJoin: (data: { gameId: string }) => void;
   webrtcOffer: (data: { to: string; from: string; sdp: RTCSessionDescriptionInit; gameId?: string }) => void;
@@ -64,19 +68,13 @@ interface ClientToServerEvents {
 }
 
 
+// Define the events for inter-server communication
 interface InterServerEvents {
   ping: () => void;
 }
 
 
-interface SocketData {
-  data:JSON
-  playerId?: string;
-  gameId?:string;
-  role?: "player" | "spectator";
-}
-
-
+// createNewServer function to initialize a new Socket.IO server
 export function createNewServer(httpServer:HTTPServer){
     const io = new Server<
         ClientToServerEvents,
@@ -85,7 +83,7 @@ export function createNewServer(httpServer:HTTPServer){
         SocketData
     >(httpServer, {
       cors:{
-        origin:["http://localhost:5500","http://localhost:3002",
+        origin:["http://localhost:5500","http://localhost:3000",
         "https://lasertag.vercel.app/"],
         methods: ["GET", "POST"]
       }
