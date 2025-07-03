@@ -1,68 +1,20 @@
 import labels from "./labels.json";
-import Tesseract from "tesseract.js";
+import { getWebSocket } from "@/lib/websocket";
 
-/**
- * Perform OCR on a specific region of the canvas
- * @param {HTMLCanvasElement} canvas - The canvas element
- * @param {number} x - X coordinate of the region
- * @param {number} y - Y coordinate of the region
- * @param {number} width - Width of the region
- * @param {number} height - Height of the region
- * @returns {Promise<string>} - Detected text
- */
-async function performOCROnRegion(canvas, x, y, width, height) {
-  try {
-    const ctx = canvas.getContext("2d");
-    
-    // Clamp coordinates to stay within canvas bounds
-    const clampedX = Math.max(0, Math.min(x, canvas.width - 1));
-    const clampedY = Math.max(0, Math.min(y, canvas.height - 1));
-    const clampedWidth = Math.min(width, canvas.width - clampedX);
-    const clampedHeight = Math.min(height, canvas.height - clampedY);
-    
-    // Skip if region is too small
-    if (clampedWidth < 10 || clampedHeight < 10) {
-      return "";
-    }
-    
-    // Extract image data from the bounding box region
-    const imageData = ctx.getImageData(clampedX, clampedY, clampedWidth, clampedHeight);
-    
-    // Create a temporary canvas for OCR
-    const ocrCanvas = document.createElement("canvas");
-    ocrCanvas.width = clampedWidth;
-    ocrCanvas.height = clampedHeight;
-    const ocrCtx = ocrCanvas.getContext("2d");
-    ocrCtx.putImageData(imageData, 0, 0);
-    
-    // Perform OCR on the region
-    const {
-      data: { text },
-    } = await Tesseract.recognize(ocrCanvas, "eng", {
-      params: { 
-        tessedit_char_whitelist: "ABPURM0123456789",
-        tessedit_pageseg_mode: 8 // Treat the image as a single word
-      },
-    });
-    
-    return text.trim();
-  } catch (error) {
-    console.error("OCR error:", error);
-    return "";
-  }
-}
+export const setupCanvasScaling = (canvasRef, scaleFactor = 0.8) => {
+  // Scale the canvas visually using CSS transform
+  canvasRef.style.transform = `scale(${scaleFactor})`;
+  canvasRef.style.transformOrigin = 'center center';
+  
+  // Optional: Adjust positioning if needed
+  canvasRef.style.position = 'absolute';
+  canvasRef.style.top = '50%';
+  canvasRef.style.left = '50%';
+  canvasRef.style.marginTop = `-${canvasRef.height * scaleFactor / 2}px`;
+  canvasRef.style.marginLeft = `-${canvasRef.width * scaleFactor / 2}px`;
+};
 
-/**
- * Render prediction boxes with OCR
- * @param {HTMLCanvasElement} canvasRef canvas tag reference
- * @param {HTMLVideoElement} videoSource video source for OCR
- * @param {number} classThreshold class threshold
- * @param {Array} boxes_data boxes array
- * @param {Array} scores_data scores array
- * @param {Array} classes_data class array
- * @param {Array[Number]} ratios boxes ratio [xRatio, yRatio]
- * @param {Function} onPlayerDetected callback when player with ID is detected
- */
+// Fixed renderBoxes function to prevent webcam freezing
 export const renderBoxes = async (
   canvasRef,
   videoSource,
@@ -74,51 +26,39 @@ export const renderBoxes = async (
   onPlayerDetected = null
 ) => {
   const ctx = canvasRef.getContext("2d");
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
-
-  // First, draw the video frame to the canvas for OCR
-  // if (videoSource && videoSource.videoWidth > 0) {
-  //   canvasRef.width = videoSource.videoWidth;
-  //   canvasRef.height = videoSource.videoHeight;
-  //   ctx.drawImage(videoSource, 0, 0);
-  // }
+  
+  // Only set canvas size once when it changes, not every frame
+  if (videoSource && videoSource.videoWidth > 0 && videoSource.videoHeight > 0) {
+    if (canvasRef.width !== videoSource.videoWidth || canvasRef.height !== videoSource.videoHeight) {
+      canvasRef.width = videoSource.videoWidth;
+      canvasRef.height = videoSource.videoHeight;
+    }
+  }
+  
+  // Clear the canvas
+  ctx.clearRect(0, 0, canvasRef.width, canvasRef.height);
 
   const colors = new Colors();
 
-  // font configs
   const font = `${Math.max(
     Math.round(Math.max(ctx.canvas.width, ctx.canvas.height) / 40),
     14
   )}px Arial`;
+  
   ctx.font = font;
   ctx.textBaseline = "top";
-  
+
   const canvasCenterX = canvasRef.width / 2;
   const canvasCenterY = canvasRef.height / 2;
-  let detected = false;
-  let targetLocked = false;
-  let detectedColor;
+  const centerStripLeft = canvasRef.width * 0.45;
+  const centerStripRight = canvasRef.width * 0.55;
 
-  const centerStripLeft = canvasRef.width / 2 - canvasRef.width * 0.1; // 20% wide center strip
-  const centerStripRight = canvasRef.width / 2 + canvasRef.width * 0.1;
+  let targetLocked=false;
 
-  // Draw center crosshair
-  // ctx.beginPath();
-  // ctx.arc(canvasCenterX, canvasCenterY, 5, 0, 2 * Math.PI);
-  // ctx.fillStyle = "#FF0000";
-  // ctx.fill();
-  // ctx.strokeStyle = "#fff";
-  // ctx.lineWidth = 2;
-  // ctx.stroke();
-
-  // Process each detection
+  // Process detection boxes first
   for (let i = 0; i < scores_data.length; ++i) {
-    // filter based on class threshold and only detect persons (class 0)
     if (scores_data[i] > classThreshold && classes_data[i] === 0) {
-      detected = true;
-      const klass = labels[classes_data[i]];
       const color = colors.get(classes_data[i]);
-      const score = (scores_data[i] * 100).toFixed(1);
 
       let [x1, y1, x2, y2] = boxes_data.slice(i * 4, (i + 1) * 4);
       x1 *= canvasRef.width * ratios[0];
@@ -126,7 +66,6 @@ export const renderBoxes = async (
       y1 *= canvasRef.height * ratios[1];
       y2 *= canvasRef.height * ratios[1];
 
-      // Skip detections outside center strip
       if (x2 < centerStripLeft || x1 > centerStripRight) {
         continue;
       }
@@ -144,71 +83,326 @@ export const renderBoxes = async (
       const width = x2 - x1;
       const height = y2 - y1;
 
-      // Draw bounding box
       ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(Math.min(ctx.canvas.width, ctx.canvas.height) / 200, 2.5);
       ctx.strokeRect(x1, y1, width, height);
-
-      // Perform OCR on the bounding box region
-      let detectedText = "";
-      try {
-        console.log("HERE")
-        detectedText = await performOCROnRegion(canvasRef, 0, 0, canvasRef.width, canvasRef.height);
-        console.log(`OCR detected text: "${detectedText}" in bounding box [${x1}, ${y1}, ${x2}, ${y2}]`);
-        
-        // Extract valid player IDs from detected text
-        const matchedDigits = detectedText.match(/[ABPURM0-9]+/gi);
-        if (matchedDigits && matchedDigits.length > 0) {
-          const playerId = matchedDigits[0];
-          if (playerId.length >= 1 && playerId.length <= 2) {
-            console.log(`Detected player ID: ${playerId} in bounding box`);
-            
-            // Call callback if provided and player is targeted
-            if (onPlayerDetected && isInBox) {
-              onPlayerDetected(playerId, detectedColor);
-            }
-            
-            // Update the label to include detected ID
-            detectedText = playerId;
-          }
-        }
-      } catch (error) {
-        console.error("OCR processing error:", error);
-      }
-
-      // Draw the label background
-      // ctx.fillStyle = color;
-      // const labelText = detectedText ? 
-      //   `${klass} - ${score}% - ID: ${detectedText}` : 
-      //   `${klass} - ${score}%`;
-      // const textWidth = ctx.measureText(labelText).width;
-      // const textHeight = parseInt(font, 10);
-      // const yText = y1 - (textHeight + ctx.lineWidth);
-      
-      // ctx.fillRect(
-      //   x1 - 1,
-      //   yText < 0 ? 0 : yText,
-      //   textWidth + ctx.lineWidth,
-      //   textHeight + ctx.lineWidth
-      // );
-
-      // Draw labels
-      // ctx.fillStyle = "#ffffff";
-      // ctx.fillText(labelText, x1 - 1, yText < 0 ? 0 : yText);
     }
   }
 
-  // Update UI elements
-  // const aimStatusEl = document.getElementById("aim-status");
-  // if (aimStatusEl && targetLocked) {
-  //   aimStatusEl.innerHTML = targetLocked ? "🎯 Aimed at person!" : "";
-  //   const colorStatusEl = document.getElementById("center-color");
-  //   if (colorStatusEl && detectedColor) {
-  //     colorStatusEl.innerHTML = `🎨 Center color: rgb(${detectedColor.r}, ${detectedColor.g}, ${detectedColor.b})`;
-  //     colorStatusEl.style.color = `rgb(${detectedColor.r}, ${detectedColor.g}, ${detectedColor.b})`;
-  //   }
-  // }
+  let centerColor;
+  if (videoSource && videoSource.videoWidth > 0 && targetLocked) {
+      try {
+          centerColor = getEnhancedCenterColor(videoSource, 10);
+
+          //TODO REMOVE THIS
+          // const { r, g, b } = centerColor;
+          // const text = `RGB: (${r}, ${g}, ${b})`;
+
+          // const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+          // ctx.fillStyle = brightness > 125 ? "black" : "white";
+
+          // ctx.font = "16px Arial";
+          // ctx.textBaseline = "bottom";
+          // ctx.fillText(text, canvasCenterX + 10, canvasCenterY - 10);
+      } catch (error) {
+          console.warn("Color detection error:", error);
+      }
+
+      if (!centerColor) {
+        return;
+      }
+      onPlayerDetected(centerColor);
+      // const { r, g, b } = centerColor;
+      // const text = `RGB: (${r}, ${g}, ${b})`;
+
+      // // Draw color info with better visibility
+      // ctx.save();
+      // ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      // ctx.fillRect(canvasCenterX + 15, canvasCenterY - 30, 150, 25);
+      
+      // const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      // ctx.fillStyle = brightness > 125 ? "white" : "yellow";
+      // ctx.font = "14px Arial";
+      // ctx.textBaseline = "middle";
+      // ctx.fillText(text, canvasCenterX + 20, canvasCenterY - 17);
+      // ctx.restore();
+
+      // Draw crosshair
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(canvasCenterX - 20, canvasCenterY);
+      ctx.lineTo(canvasCenterX + 20, canvasCenterY);
+      ctx.moveTo(canvasCenterX, canvasCenterY - 20);
+      ctx.lineTo(canvasCenterX, canvasCenterY + 20);
+      ctx.stroke();
+
+  }
 };
+
+// Optimized detectVideo function with better frame management
+export const detectVideo = (
+  vidSource, 
+  model, 
+  inputShape, 
+  classThreshold, 
+  canvasRef, 
+  onPlayerDetected = null
+) => {
+  const [modelWidth, modelHeight] = inputShape.slice(1, 3);
+  
+  let isDetecting = false;
+  let animationId = null;
+  let lastFrameTime = 0;
+  const targetFPS = 30; // Limit to 30 FPS to prevent overload
+  const frameInterval = 1000 / targetFPS;
+  
+  const detectFrame = async (currentTime) => {
+    // Throttle frame rate
+    if (currentTime - lastFrameTime < frameInterval) {
+      animationId = requestAnimationFrame(detectFrame);
+      return;
+    }
+    lastFrameTime = currentTime;
+    
+    // Check if video is still valid and playing
+    if (!vidSource || vidSource.readyState < 2 || vidSource.videoWidth === 0 || vidSource.videoHeight === 0) {
+      animationId = requestAnimationFrame(detectFrame);
+      return;
+    }
+    
+    if (isDetecting) {
+      animationId = requestAnimationFrame(detectFrame);
+      return;
+    }
+    
+    isDetecting = true;
+    
+    try {
+      // Use a more efficient detection approach
+      tf.engine().startScope();
+      
+      const [input, xRatio, yRatio] = preprocess(vidSource, modelWidth, modelHeight);
+      
+      const res = await model.executeAsync(input);
+      const [boxes, scores, classes] = res.slice(0, 3);
+      const boxes_data = boxes.dataSync();
+      const scores_data = scores.dataSync();
+      const classes_data = classes.dataSync();
+      
+      await renderBoxes(
+        canvasRef,
+        vidSource,
+        classThreshold,
+        boxes_data,
+        scores_data,
+        classes_data,
+        [xRatio, yRatio],
+        onPlayerDetected
+      );
+      
+      // Clean up tensors
+      tf.dispose([res, input]);
+      tf.engine().endScope();
+      
+    } catch (error) {
+      console.error("Video detection error:", error);
+      tf.engine().endScope();
+    }
+    
+    isDetecting = false;
+    animationId = requestAnimationFrame(detectFrame);
+  };
+  
+  // Start detection loop
+  animationId = requestAnimationFrame(detectFrame);
+  
+  // Return cleanup function
+  return () => {
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+  };
+};
+
+function getCenterColor(videoSource, size = 20) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  // Use full resolution for better accuracy
+  canvas.width = videoSource.videoWidth;
+  canvas.height = videoSource.videoHeight;
+
+  ctx.drawImage(videoSource, 0, 0);
+
+  const centerX = Math.floor(canvas.width / 2);
+  const centerY = Math.floor(canvas.height / 2);
+  
+  // Use larger sampling area for more stable color detection
+  const regionSize = Math.max(size, 30);
+
+  try {
+    const imageData = ctx.getImageData(
+      centerX - regionSize / 2,
+      centerY - regionSize / 2,
+      regionSize,
+      regionSize
+    );
+    const data = imageData.data;
+
+    // Sample with outlier rejection for more stable color
+    const samples = [];
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] > 0) { // Check alpha channel
+        samples.push({
+          r: data[i],
+          g: data[i + 1],
+          b: data[i + 2]
+        });
+      }
+    }
+
+    if (samples.length === 0) {
+      return { r: 0, g: 0, b: 0 };
+    }
+
+    // Use median values to reduce noise
+    samples.sort((a, b) => a.r - b.r);
+    const medianR = samples[Math.floor(samples.length / 2)].r;
+    
+    samples.sort((a, b) => a.g - b.g);
+    const medianG = samples[Math.floor(samples.length / 2)].g;
+    
+    samples.sort((a, b) => a.b - b.b);
+    const medianB = samples[Math.floor(samples.length / 2)].b;
+
+    return { 
+      r: Math.round(medianR), 
+      g: Math.round(medianG), 
+      b: Math.round(medianB) 
+    };
+    
+  } catch (error) {
+    console.error("Error getting image data:", error);
+    return { r: 0, g: 0, b: 0 };
+  }
+}
+
+function getEnhancedCenterColor(videoSource, size = 30) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  // Use full resolution
+  canvas.width = videoSource.videoWidth;
+  canvas.height = videoSource.videoHeight;
+
+  ctx.drawImage(videoSource, 0, 0);
+
+  const centerX = Math.floor(canvas.width / 2);
+  const centerY = Math.floor(canvas.height / 2);
+  
+  // Sample multiple points around center for more robust detection
+  const samplePoints = [
+    { x: centerX, y: centerY }, // Center
+    { x: centerX - 10, y: centerY }, // Left
+    { x: centerX + 10, y: centerY }, // Right
+    { x: centerX, y: centerY - 10 }, // Top
+    { x: centerX, y: centerY + 10 }, // Bottom
+  ];
+
+  let totalR = 0, totalG = 0, totalB = 0;
+  let validSamples = 0;
+
+  try {
+    for (const point of samplePoints) {
+      if (point.x >= 0 && point.x < canvas.width && 
+          point.y >= 0 && point.y < canvas.height) {
+        
+        const imageData = ctx.getImageData(
+          Math.max(0, point.x - size/2),
+          Math.max(0, point.y - size/2),
+          Math.min(size, canvas.width - point.x + size/2),
+          Math.min(size, canvas.height - point.y + size/2)
+        );
+        
+        const data = imageData.data;
+        let r = 0, g = 0, b = 0, pixels = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 0) { // Valid pixel
+            r += data[i];
+            g += data[i + 1];
+            b += data[i + 2];
+            pixels++;
+          }
+        }
+
+        if (pixels > 0) {
+          totalR += r / pixels;
+          totalG += g / pixels;
+          totalB += b / pixels;
+          validSamples++;
+        }
+      }
+    }
+
+    if (validSamples === 0) {
+      return { r: 0, g: 0, b: 0 };
+    }
+
+    return {
+      r: Math.round(totalR / validSamples),
+      g: Math.round(totalG / validSamples),
+      b: Math.round(totalB / validSamples),
+    };
+
+  } catch (error) {
+    console.error("Enhanced color detection error:", error);
+    return { r: 0, g: 0, b: 0 };
+  }
+}
+
+// // Keep the working getCenterColor function
+// function getCenterColor(videoSource, size = 10) {
+//   let shrinkFactor = 1;
+
+//   const canvas = document.createElement("canvas");
+//   const ctx = canvas.getContext("2d");
+
+//   canvas.width = Math.floor(videoSource.videoWidth / shrinkFactor);
+//   canvas.height = Math.floor(videoSource.videoHeight / shrinkFactor);
+
+//   ctx.drawImage(videoSource, 0, 0);
+//   // Shrink the bounding box to the center region
+
+//   const centerX = Math.floor(canvas.width / 2);
+//   const centerY = Math.floor(canvas.height / 2);
+//   const regionSize = size;
+
+//   const imageData = ctx.getImageData(
+//     centerX - regionSize / 2,
+//     centerY - regionSize / 2,
+//     regionSize,
+//     regionSize
+//   );
+//   const data = imageData.data;
+
+//   let r = 0, g = 0, b = 0;
+//   const totalPixels = regionSize * regionSize;
+
+//   for (let i = 0; i < data.length; i += 4) {
+//     r += data[i];
+//     g += data[i + 1];
+//     b += data[i + 2];
+//   }
+
+//   r = Math.round(r / totalPixels);
+//   g = Math.round(g / totalPixels);
+//   b = Math.round(b / totalPixels);
+
+//   return { r, g, b };
+// }
 
 class Colors {
   constructor() {

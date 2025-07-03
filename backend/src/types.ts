@@ -14,6 +14,7 @@ export interface Player {
   isAlive: boolean
   isHost?: boolean
   isSpectator?: boolean
+  respawnScheduled?: boolean
 }
 
 export type GameEventData = {

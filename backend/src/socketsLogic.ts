@@ -38,14 +38,15 @@ interface ServerToClientEvents {
 interface ClientToServerEvents {
   hello: () => void;
   //room logic
-  create: (playerName:string) => void;
-  join : (data:{ gameID: string; playerName: string},callback:(res:JoinRoomResponse)=>void)=>void;
+  create: (data:{playerName:string, shirtColor: string}) => void;
+  join : (data:{ gameID: string; playerName: string, shirtColor: string},callback:(res:JoinRoomResponse)=>void)=>void;
   getRoomInfo : (roomID:string,  callback?: (response: any) => void)=>void;
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
 
   //start game logic
   startGame: (gameID:string)=>void;
   startGameMessageRecievied: (gameID:string,playerID:string)=>void;
+  endGame : (gameID:string)=>void;
 
   //game logic
   triggerEvent:(data:{gameID:string,eventType:number,eventData:JSON})=>void
@@ -84,7 +85,7 @@ export function createNewServer(httpServer:HTTPServer){
         SocketData
     >(httpServer, {
       cors:{
-        origin:["http://localhost:5500","http://localhost:3000",
+        origin:["http://localhost:5500","http://localhost:3002",
         "https://lasertag.vercel.app/"],
         methods: ["GET", "POST"]
       }
