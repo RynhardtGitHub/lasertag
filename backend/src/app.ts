@@ -15,9 +15,6 @@ let roomsPlayers: { [key: string]: Array<Player> } = {}
 let roomTimers: {[key:string] : number} = {};
 let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
 let defaultTime = 300;
-let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
-
-let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
 app.use(express.json());
@@ -220,14 +217,18 @@ io.on("connection", (socket) => {
                 let damage = data.eventData.weapon?.damage || 10; // Default damage=10
                 let victimId = data.eventData.victim;
                 let shooterId = data.eventData.shooter;
+                const shooter = roomsPlayers[data.gameID].find(p => p.shootId === shooterId);
+
+                if (!shooter?.isAlive) return;
 
                 // Decrease player health
                 const updatedPlayers = roomsPlayers[data.gameID].map(p => {
                     // hit the victim
                     if (p.shootId === victimId) {
-                      const newHealth = p.health - damage;
+                      const newHealth = Math.max(p.health - damage,0);
 
                       console.log(`Hit player: ${victimId}`)
+
                       return {
                         ...p,
                         health: newHealth,
@@ -245,11 +246,44 @@ io.on("connection", (socket) => {
                     // everyone else stays the same
                     return p;
                   });
+
                   roomsPlayers[data.gameID] = updatedPlayers;
+
+                  if (roomsPlayers[data.gameID]) {
+                    const alivePlayersCount = roomsPlayers[data.gameID].filter(p => p.isAlive).length;
+                    console.log(`Alive players in game ${data.gameID}: ${alivePlayersCount}`);
+
+                    if (alivePlayersCount <= 1) { // If 1 or 0 players are alive (0 could happen if last two die simultaneously)
+                        console.log(`Game ${data.gameID} ending: Only ${alivePlayersCount} player(s) remaining.`);
+                        io.to(data.gameID).emit("endSession");
+                        //delete roomsPlayers[data.gameID];
+                    }
+                  }
                 break;
 
             case 1: // heal event
-                console.log("heal")
+                let healAmount = data.eventData.healAmount || 20; // Default heal amount=20
+                let playerId = data.eventData.playerId;
+                const playerToHeal = roomsPlayers[data.gameID].find(p => p.shootId === playerId);
+
+                if (!playerToHeal?.isAlive) return;
+
+                // Increase player health
+                const updatedHealthPlayers = roomsPlayers[data.gameID].map(p => {
+                    if (p.shootId === playerId) {
+                        const newHealth = Math.max(p.health + healAmount, 100); // Assuming max health is 100
+                        return {
+                            ...p,
+                            health: newHealth,
+                            isAlive: newHealth > 0
+                        };
+                    }
+                    return p;
+                });
+
+                roomsPlayers[data.gameID] = updatedHealthPlayers;
+                io.to(data.gameID).emit("updateRoom", updatedHealthPlayers);
+                break;
         
             default:
                 break;
