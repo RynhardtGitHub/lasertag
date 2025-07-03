@@ -14,7 +14,7 @@ const io = createNewServer(httpServer);
 let roomsPlayers: { [key: string]: Array<Player> } = {}
 let roomTimers: {[key:string] : number} = {};
 let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
-let defaultTime = 300;
+let defaultTime = 135;
 
 app.use(cors());
 app.use(express.json());
