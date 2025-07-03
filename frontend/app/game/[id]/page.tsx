@@ -366,7 +366,7 @@
       websocket.off("webrtcCandidate", handleWebRTCCandidate);
     };
 
-  }, [cameraActive, gameId, websocket]);
+  }, [cameraActive, gameId, webSocket]);
 
     useEffect(() => {
       const handleUpdateRoom = (playersFromServer : typeof players)=>{
