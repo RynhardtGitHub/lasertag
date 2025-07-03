@@ -10,6 +10,7 @@ export interface Player {
   isAlive: boolean
   isHost?: boolean
   isSpectator?: boolean
+  shirtColor: string
 }
 
 export interface GameState {

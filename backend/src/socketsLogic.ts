@@ -38,14 +38,15 @@ interface ServerToClientEvents {
 interface ClientToServerEvents {
   hello: () => void;
   //room logic
-  create: (playerName:string) => void;
-  join : (data:{ gameID: string; playerName: string},callback:(res:JoinRoomResponse)=>void)=>void;
+  create: (data:{playerName:string, shirtColor: string}) => void;
+  join : (data:{ gameID: string; playerName: string, shirtColor: string},callback:(res:JoinRoomResponse)=>void)=>void;
   getRoomInfo : (roomID:string,  callback?: (response: any) => void)=>void;
   spectate:(data:{ gameID: string; playerName?: string},callback:(res:JoinRoomResponse)=>void)=>void;
 
   //start game logic
   startGame: (gameID:string)=>void;
   startGameMessageRecievied: (gameID:string,playerID:string)=>void;
+  endGame : (gameID:string)=>void;
 
   //game logic
   triggerEvent:(data:{gameID:string,eventType:number,eventData:JSON})=>void

@@ -2,8 +2,7 @@ import express, { Request, Response } from "express";
 import { createServer } from "http";
 import {createNewServer} from "./socketsLogic";
 import cors from "cors";
-import { makeid } from "./misc";
-import { createPlayer } from "./misc";
+import { createPlayer,makeid } from "./misc";
 import { Player } from "./types";
 import { defaultMaxListeners } from "events";
 
@@ -16,9 +15,6 @@ let roomsPlayers: { [key: string]: Array<Player> } = {}
 let roomTimers: {[key:string] : number} = {};
 let roomIntervals: { [key: string]: NodeJS.Timeout } = {};
 let defaultTime = 300;
-let readyPlayers: { [key: string]: Array<String> } = {} //Array is player strings
-
-let assignedPlayerIds: Array<string> = [];
 
 app.use(cors());
 app.use(express.json());
@@ -73,7 +69,7 @@ app.get("/weapons",(req,res)=>{
 
 
 app.get("/version",(req,res)=>{
-    res.json({version: "0.1.2"});
+    res.json({version: "1.1.2"});
 })
 
 io.on("connection", (socket) => {
@@ -85,15 +81,11 @@ io.on("connection", (socket) => {
 
     let numberWhitelist = '123';
     let letterWhitelist = 'APU';
+    let maxPlayers = 8;
 
-    socket.on("create",(playerName)=>{
-        let playerId = makeid(1,numberWhitelist);
-        playerId += makeid(1,letterWhitelist);
-        //TODO CHANGE BACK
-
-        // playerId = "1"
-        let newPlayer = createPlayer(socket.id,playerName,playerId,{isHost:true,isSpectator:false});
-        console.log(`Created player with id: ${playerId}`)
+    socket.on("create",(data)=>{
+        let newPlayer = createPlayer(socket.id,data.playerName,data.shirtColor,{isHost:true,isSpectator:false});
+        console.log(`Created player with id: ${data.shirtColor}`)
 
         const roomID = makeid(6);
         socket.join(roomID)
@@ -102,6 +94,7 @@ io.on("connection", (socket) => {
 
         socket.emit("sendRoom", roomID,[]);
     })
+
 
     socket.on("getRoomInfo",(roomID, callback)=>{
         // Assuming that initRoom is only called after rendering the lobby page
@@ -121,6 +114,7 @@ io.on("connection", (socket) => {
 
         io.to(roomID).emit("updateRoom", activePlayers)
     })
+
 
     socket.on("join",async (data,callback)=>{
         const availRooms = getRooms();
@@ -148,22 +142,17 @@ io.on("connection", (socket) => {
         if (!playerExists) {
             const players = roomsPlayers[data.gameID];
             // if (players.length >= numberWhitelist.length * letterWhitelist.length){
-            if (players.length >= numberWhitelist.length){
+            if (players.length >= maxPlayers){
                 console.warn(`Max players for game ${data.gameID} reached`);
                 if (typeof callback === "function") {
                     callback({ success: false, message: "Room is full." });
                 }
                 return;
             }
-            const idExists = (id: string) => players.some(p => p.shootId === id);
-            let playerId;
-            do {
-                playerId = makeid(1, numberWhitelist) + makeid(1, letterWhitelist);
-            } while (idExists(playerId));
 
-            const newPlayer = createPlayer(socket.id, data.playerName,playerId,{ isHost: false, isSpectator: false });
+            const newPlayer = createPlayer(socket.id, data.playerName,data.shirtColor,{ isHost: false, isSpectator: false });
             roomsPlayers[data.gameID].push(newPlayer);
-            console.log(`New player joined with ID: ${playerId}`)
+            console.log(`New player joined with shirtColor: ${data.shirtColor}`)
         }
 
         if (typeof callback === "function") {
@@ -228,14 +217,18 @@ io.on("connection", (socket) => {
                 let damage = data.eventData.weapon?.damage || 10; // Default damage=10
                 let victimId = data.eventData.victim;
                 let shooterId = data.eventData.shooter;
+                const shooter = roomsPlayers[data.gameID].find(p => p.shootId === shooterId);
+
+                if (!shooter?.isAlive) return;
 
                 // Decrease player health
                 const updatedPlayers = roomsPlayers[data.gameID].map(p => {
                     // hit the victim
                     if (p.shootId === victimId) {
-                      const newHealth = p.health - damage;
+                      const newHealth = Math.max(p.health - damage,0);
 
                       console.log(`Hit player: ${victimId}`)
+
                       return {
                         ...p,
                         health: newHealth,
@@ -253,11 +246,44 @@ io.on("connection", (socket) => {
                     // everyone else stays the same
                     return p;
                   });
+
                   roomsPlayers[data.gameID] = updatedPlayers;
+
+                  if (roomsPlayers[data.gameID]) {
+                    const alivePlayersCount = roomsPlayers[data.gameID].filter(p => p.isAlive).length;
+                    console.log(`Alive players in game ${data.gameID}: ${alivePlayersCount}`);
+
+                    if (alivePlayersCount <= 1) { // If 1 or 0 players are alive (0 could happen if last two die simultaneously)
+                        console.log(`Game ${data.gameID} ending: Only ${alivePlayersCount} player(s) remaining.`);
+                        io.to(data.gameID).emit("endSession");
+                        //delete roomsPlayers[data.gameID];
+                    }
+                  }
                 break;
 
             case 1: // heal event
-                console.log("heal")
+                let healAmount = data.eventData.healAmount || 20; // Default heal amount=20
+                let playerId = data.eventData.playerId;
+                const playerToHeal = roomsPlayers[data.gameID].find(p => p.shootId === playerId);
+
+                if (!playerToHeal?.isAlive) return;
+
+                // Increase player health
+                const updatedHealthPlayers = roomsPlayers[data.gameID].map(p => {
+                    if (p.shootId === playerId) {
+                        const newHealth = Math.max(p.health + healAmount, 100); // Assuming max health is 100
+                        return {
+                            ...p,
+                            health: newHealth,
+                            isAlive: newHealth > 0
+                        };
+                    }
+                    return p;
+                });
+
+                roomsPlayers[data.gameID] = updatedHealthPlayers;
+                io.to(data.gameID).emit("updateRoom", updatedHealthPlayers);
+                break;
         
             default:
                 break;
