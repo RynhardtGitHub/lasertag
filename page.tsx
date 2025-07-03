@@ -9,6 +9,7 @@
   import { Zap, Heart, Users, Clock } from "lucide-react"
   import Tesseract from "tesseract.js";
   import { getWebSocket } from "@/lib/websocket"
+  //import {laser_Sound} from "@/public/sound/laser_Sound.mp3"
 
   export default function GamePage() {
     const websocket = getWebSocket();
@@ -46,7 +47,7 @@
     }
     
     // Game timer
-    useEffect(() => {
+    /*useEffect(() => {
       const timer = setInterval(() => {
         setGameTime(Math.max(0, gameTime - 1))
       }, 1000)
@@ -56,7 +57,40 @@
       }
 
       return () => clearInterval(timer)
-    }, [gameTime, gameId, router, setGameTime])
+    }, [gameTime, gameId, router, setGameTime])*/
+
+    // 1-second countdown timer
+useEffect(() => {
+  const timer = setInterval(() => {
+    setGameTime(Math.max(0, gameTime - 1));
+  }, 1000);
+
+  if (gameTime === 0) {
+    router.push(`/results/${gameId}`);
+  }
+
+  return () => clearInterval(timer);
+}, [gameTime, gameId, router, setGameTime]);
+
+// 30-second heal timer, starts only after 30 seconds (no immediate run)
+useEffect(() => {
+  const interval = setInterval(() => {
+    if (currentPlayer) {
+      healPlayer(currentPlayer.id);
+      console.log("30s");
+      webSocket.emit("misc", currentPlayer.id);
+
+      websocket.on("updateRoom", (updatedPlayers) => {
+          useGameStore.getState().setPlayers(updatedPlayers);
+          console.log("Updated players:", updatedPlayers)
+          });
+      //setLastAction("You gained passive regen!");
+    }
+  }, 30000);
+
+  return () => clearInterval(interval);
+}, [currentPlayer, healPlayer]);
+
 
     // Camera setup
     useEffect(() => {
@@ -105,7 +139,7 @@
     }, [cameraActive, videoRef, canvasRef])
 //typeof players
     useEffect(() => {
-  const handleUpdateRoom = (playersFromServer: typeof players) => {
+    const handleUpdateRoom = (playersFromServer: typeof players) => {
     setPlayers(playersFromServer);
 
     // Also re-sync currentPlayer
@@ -252,7 +286,6 @@
           //console.log(matchedPlayer.shootId);
           //console.log(currentPlayer.shootId);
 
-          
           websocket.emit("triggerEvent", {
             gameID: `${gameId}`,
             eventType: 0,
@@ -262,7 +295,7 @@
             }},
             
           );
-
+          
           setLastAction(`Shot ${matchedPlayer.name}!`);
 
           // <- This updates your local UI/state
@@ -283,6 +316,9 @@
       setTimeout(() => setLastAction(""), 2000)
     }
 
+    /*function PlayLaser(){
+      new Audio(laser_Sound).play()
+    }*/
     const handleColorAction = (color: string) => {
       if (!currentPlayer) return
 
@@ -442,6 +478,10 @@
                   <div className="flex items-center gap-2">
                     <Zap className="w-4 h-4" />
                     <span>{currentPlayer.weapon}</span>
+                    <audio id="shootAudio" preload="auto">
+                    <source src="/sounds/shoot.mp3" type="audio/mpeg" />
+                    Your browser does not support the audio element.
+                  </audio>
                   </div>
                   <div className="flex gap-1">
                     <Badge variant="outline" className="text-red-400 border-red-400 text-xs">

@@ -1,7 +1,6 @@
 import { create } from "zustand"
 
 export interface Player {
-  shootId: any
   id: string
   name: string
   shootId: string
@@ -11,6 +10,7 @@ export interface Player {
   isAlive: boolean
   isHost?: boolean
   isSpectator?: boolean
+  shirtColor: string
 }
 
 export interface GameState {

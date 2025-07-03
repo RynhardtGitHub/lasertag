@@ -10,7 +10,7 @@ export interface Player {
   shootId: string
   health: number
   score: number
-  weapon: string
+  weapon: [ string, number ]
   isAlive: boolean
   isHost?: boolean
   isSpectator?: boolean

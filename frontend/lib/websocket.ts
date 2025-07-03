@@ -4,16 +4,17 @@ import { io, Socket } from "socket.io-client";
 
 export class WebSocketClient {
   private socket: Socket;
-  private id="";
+  public id="";
 
   constructor() {
     //TODO CHANGE THE URL for server socket
-    this.socket = io("https://lasertag.onrender.com/", {
-      transports: ["websocket"], // optional, can fallback to polling if you remove this
-    });
-    // this.socket = io("http://localhost:3001", {
+    // this.socket = io("https://lasertag.onrender.com/", {
     //   transports: ["websocket"], // optional, can fallback to polling if you remove this
     // });
+
+    this.socket = io("http://localhost:3001", {
+      transports: ["websocket"], // optional, can fallback to polling if you remove this
+    });
 
 
     this.socket.on("connect", () => {
