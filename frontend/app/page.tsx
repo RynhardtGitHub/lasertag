@@ -367,7 +367,6 @@ export default function HomePage() {
 
         <div className="mt-8 text-center text-gray-400 text-sm">
           <p>Use your camera to scan colored targets</p>
-          <p>Red = Shoot • Blue = Shield • Green = Health</p>
         </div>
       </div>
     </div>
