@@ -11,7 +11,8 @@
   import { getWebSocket } from "@/lib/websocket"
   import * as tf from "@tensorflow/tfjs";
   import { detectImage } from "./utils/detect";
-  import { getClosestColor, hexToRgb, rgbToHex ,findClosestColor} from "@/lib/utils"
+  import { getClosestColor, hexToRgb, rgbToHex ,findClosestColor, Color} from "@/lib/utils"
+
 
   export default function GamePage() {
     const params = useParams()
@@ -84,6 +85,7 @@
       { name: "Shotgun", damage: 15, range: 75 },
       { name: "Rocket Launcher", damage: 30, range: 200 },
     ];
+
     let playerWeapon = weapons[1]; // basic pistol
 
     const randomiseWeapon = () => {
@@ -157,82 +159,145 @@ useEffect(() => {
   }
 }, [cameraActive]);
 
-  const handlePlayerDetected = async (detectedColor:{r:number,b:number,g:number}) => {
-    if (!currentPlayer) return;
+  const handlePlayerDetected = async (detectedColor:Color) => {
+  if (!currentPlayer) return;
 
-    console.log("Player detected in bounding box:", detectedColor);
+  console.log("Raw detected color:", detectedColor);
 
-    const now = Date.now();
-    const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
+  const now = Date.now();
+  const lastActionTime = Number.parseInt(localStorage.getItem("lastActionTime") || "0");
 
-    // Prevent spam (1 second cooldown)
-    if (now - lastActionTime < 1000) return;
+  // Prevent spam (reduce to 800ms for better responsiveness)
+  if (now - lastActionTime < 800) return;
 
-    localStorage.setItem("lastActionTime", now.toString());
-
-    // setLastAction(`Targeting ${detectedColor}...`);
-    
-    try {
-      let roomColours = roomPlayers.map(player => player.shootId.toLowerCase());
-
-      let roomRGB = roomColours
-        .map(color => hexToRgb(color))
-        .filter((c): c is { r: number; g: number; b: number } => c !== null); // <-- filter nulls
-      
-      
-      let detectedColorHex =  rgbToHex(detectedColor.r, detectedColor.g, detectedColor.b);
-
-      // let closestColour = findClosestColor(detectedColorHex,roomColours);
-      console.log("Detected color in hex:", detectedColorHex, "Room colors:", roomColours);
-      let closestColour = getClosestColor(detectedColor,roomRGB);
-      
-      if (!closestColour) {
-        console.error("No closest colour found");
-        setLastAction("No target found.");
-        return;
-      }
-      
-      let closestHex = rgbToHex(closestColour.r, closestColour.g, closestColour.b);
-
-      const matchedPlayer = roomPlayers.find(
-        (player) => player.shootId.toLowerCase() === closestHex.toLowerCase()
-      );
-
-      if (matchedPlayer?.shootId== currentPlayer.shootId){
-        console.log("You cannot shoot yourself!");
-        // setLastAction("You cannot shoot yourself!");
-        return;
-      }
-
-
-      console.log("Matched player:", matchedPlayer);
-      console.log("Room players:", roomPlayers);
-
-      if (matchedPlayer) {
-        console.log("Target acquired:", matchedPlayer.name);
-
-        // Emit the shoot event
-        webSocket.emit("triggerEvent", {
-          gameID: `${gameId}`,
-          eventType: 0,
-          eventData: {
-            shooterId: currentPlayer.id,
-            targetId: matchedPlayer.id,
-            shootId: matchedPlayer.shootId,
-          }
-        });
-
-        console.log("Shoot event triggered for", matchedPlayer.name);
-        setLastAction(`Shot ${matchedPlayer.name}!`);
-      } else {
-        setLastAction("Missed! No player found.");
-      }
-    } catch (err) {
-      console.error("Failed to process player detection:", err);
+  try {
+    // Validate detected color
+    if (!detectedColor || typeof detectedColor.r !== 'number' || 
+        detectedColor.r < 0 || detectedColor.r > 255) {
+      console.log("Invalid detected color:", detectedColor);
+      return;
     }
 
-    setTimeout(() => setLastAction(""), 2000);
-  };
+    // Get room colors and convert to RGB
+    let roomColours = roomPlayers.map(player => player.shootId.toLowerCase());
+    console.log("Room hex colors:", roomColours);
+
+    let roomRGB = roomColours
+      .map(color => hexToRgb(color))
+      .filter((c) => c !== null);
+    
+    console.log("Room RGB colors:", roomRGB);
+
+    if (roomRGB.length === 0) {
+      console.log("No valid room colors found");
+      return;
+    }
+
+    // Use improved color matching
+    let closestColour = getClosestColorWithThreshold(detectedColor, roomRGB, 100);
+    
+    if (!closestColour) {
+      console.log("No close color match found");
+      setLastAction("No target found.");
+      setTimeout(() => setLastAction(""), 1500);
+      return;
+    }
+    
+    let closestHex = rgbToHex(closestColour.r, closestColour.g, closestColour.b);
+    console.log("Closest match:", closestColour, "->", closestHex);
+
+    const matchedPlayer = roomPlayers.find(
+      (player) => player.shootId.toLowerCase() === closestHex.toLowerCase()
+    );
+
+    // Prevent self-targeting
+    if (matchedPlayer?.shootId === currentPlayer.shootId) {
+      console.log("Cannot target yourself");
+      setLastAction("Cannot target yourself!");
+      setTimeout(() => setLastAction(""), 1500);
+      return;
+    }
+
+    if (matchedPlayer) {
+      console.log("Target acquired:", matchedPlayer.name);
+      
+      // Store action time before emitting
+      localStorage.setItem("lastActionTime", now.toString());
+
+      // Emit the shoot event
+      webSocket.emit("triggerEvent", {
+        gameID: `${gameId}`,
+        eventType: 0,
+        eventData: {
+          shooterId: currentPlayer.id,
+          targetId: matchedPlayer.id,
+          shootId: matchedPlayer.shootId,
+        }
+      });
+
+      console.log("Shoot event triggered for", matchedPlayer.name);
+      setLastAction(`🎯 Shot ${matchedPlayer.name}!`);
+    } else {
+      console.log("No matching player found for color:", closestHex);
+      setLastAction("❌ Target not found");
+    }
+  } catch (err) {
+    console.error("Failed to process player detection:", err);
+    setLastAction("⚠️ Detection error");
+  }
+
+  setTimeout(() => setLastAction(""), 2000);
+};
+
+
+// Enhanced color matching function
+function getClosestColorWithThreshold(
+  targetColor:Color,
+  colorList:Array<Color>,
+  threshold = 100
+) {
+  if (!targetColor || !colorList || colorList.length === 0) {
+    return null;
+  }
+
+  let closest = null;
+  let minDistance = Infinity;
+
+  console.log("Comparing target:", targetColor);
+
+  for (const color of colorList) {
+    if (!color || typeof color.r !== 'number') {
+      continue;
+    }
+
+    // Use improved perceptual distance
+    const dr = targetColor.r - color.r;
+    const dg = targetColor.g - color.g;
+    const db = targetColor.b - color.b;
+    
+    // Perceptual color difference (weighted for human vision)
+    const distance = Math.sqrt(0.3 * dr * dr + 0.59 * dg * dg + 0.11 * db * db);
+    
+    console.log(`Distance to RGB(${color.r},${color.g},${color.b}): ${distance.toFixed(2)}`);
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      closest = color;
+    }
+  }
+
+  console.log("Best match:", closest, "distance:", minDistance.toFixed(2));
+  
+  // Only return if within threshold
+  if (minDistance <= threshold) {
+    return closest;
+  }
+  
+  console.log("No color within threshold of", threshold);
+  return null;
+}
+
+
 
   useEffect(() => {
         tf.ready().then(async () => {

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Webcam Center Color Detection</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 1rem;
+    }
+    video, canvas {
+      border: 1px solid #ccc;
+      max-width: 100%;
+    }
+    #colorDisplay {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+    }
+    #colorSwatch {
+      width: 50px;
+      height: 50px;
+      border: 1px solid #000;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Webcam Center Color Detector</h2>
+
+<video id="video" autoplay playsinline width="400"></video>
+<br />
+<button id="captureBtn">Take Photo</button>
+<br />
+<canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
+
+<div id="colorDisplay">
+  Center RGB: <span id="rgbValues">---</span>
+  <div id="colorSwatch"></div>
+</div>
+
+<script>
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const captureBtn = document.getElementById("captureBtn");
+  const rgbValues = document.getElementById("rgbValues");
+  const colorSwatch = document.getElementById("colorSwatch");
+
+  // Start webcam
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then((stream) => {
+      video.srcObject = stream;
+    })
+    .catch((err) => {
+      alert("Could not access webcam.");
+      console.error(err);
+    });
+
+  captureBtn.addEventListener("click", () => {
+    // Draw the current video frame to canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Get center pixel region
+    const centerX = Math.floor(canvas.width / 2);
+    const centerY = Math.floor(canvas.height / 2);
+    const size = 10; // size of the center square
+
+    const imageData = ctx.getImageData(centerX - size/2, centerY - size/2, size, size);
+    const data = imageData.data;
+
+    let r = 0, g = 0, b = 0;
+    const pixelCount = size * size;
+
+    for (let i = 0; i < data.length; i += 4) {
+      r += data[i];
+      g += data[i + 1];
+      b += data[i + 2];
+    }
+
+    r = Math.round(r / pixelCount);
+    g = Math.round(g / pixelCount);
+    b = Math.round(b / pixelCount);
+
+    rgbValues.textContent = `(${r}, ${g}, ${b})`;
+    colorSwatch.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+  });
+</script>
+
+</body>
+</html>

@@ -16,10 +16,6 @@ export class WebSocketClient {
       transports: ["websocket"], // optional, can fallback to polling if you remove this
     });
 
-    this.socket = io("http://localhost:3001", {
-      transports: ["websocket"], // optional, can fallback to polling if you remove this
-    });
-
 
     this.socket.on("connect", () => {
       console.log(`Connected as ${this.socket.id}`);

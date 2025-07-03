@@ -20,6 +20,77 @@ export function cn(...inputs: ClassValue[]) {
  */
 export type Color = { r: number; g: number; b: number };
 
+// Improved color matching with better distance calculation
+function improvedWeightedRgbDistance(color1:Color, color2:Color) {
+  const dr = color1.r - color2.r;
+  const dg = color1.g - color2.g;
+  const db = color1.b - color2.b;
+  
+  // Use perceptual color difference (Delta E simplified)
+  // Human eye is most sensitive to green, then red, then blue
+  return Math.sqrt(0.3 * dr * dr + 0.59 * dg * dg + 0.11 * db * db);
+}
+
+// Enhanced getClosestColor with better matching
+export function getClosestColorImproved(
+  targetColor:Color,
+  colorList:Array<Color>,
+  threshold = 80 // Increased threshold for more forgiving matching
+) {
+  if (!targetColor || !colorList || colorList.length === 0) {
+    return null;
+  }
+
+  let closest = null;
+  let minDistance = Infinity;
+
+  console.log("Comparing target:", targetColor, "against colors:", colorList);
+
+  for (const color of colorList) {
+    if (!color || typeof color.r !== 'number') {
+      continue;
+    }
+
+    const distance = improvedWeightedRgbDistance(targetColor, color);
+    
+    console.log(`Distance between RGB(${targetColor.r},${targetColor.g},${targetColor.b}) and RGB(${color.r},${color.g},${color.b}): ${distance}`);
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      closest = color;
+    }
+  }
+
+  console.log("Closest color found:", closest, "with distance:", minDistance);
+  
+  // Only return if within threshold
+  return minDistance <= threshold ? closest : null;
+}
+
+
+// Debounced color detection to prevent rapid firing
+// export function createDebouncedColorDetection(callback:Function, delay = 500) {
+//   let timeoutId;
+//   let lastColor = null;
+  
+//   return function(detectedColor:Color) {
+//     // If color hasn't changed significantly, don't process
+//     if (lastColor && Math.abs(lastColor.r - detectedColor.r) < 10 && 
+//         Math.abs(lastColor.g - detectedColor.g) < 10 && 
+//         Math.abs(lastColor.b - detectedColor.b) < 10) {
+//       return;
+//     }
+    
+//     lastColor = detectedColor;
+    
+//     clearTimeout(timeoutId);
+//     timeoutId = setTimeout(() => {
+//       callback(detectedColor);
+//     }, delay);
+//   };
+// }
+
+
 /**
  * Calculates the weighted RGB distance between two colors.
  * This function uses a weighted formula to account for human perception of color differences.
@@ -105,7 +176,6 @@ export function findClosestColor(detectedColor:string, targetColors:string[], th
     isMatch: minDistance <= threshold
   };
 }
-
 
 
 /**

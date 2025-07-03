@@ -89,24 +89,55 @@ export const renderBoxes = async (
     }
   }
 
+  let centerColor;
   if (videoSource && videoSource.videoWidth > 0 && targetLocked) {
       try {
-          const centerColor = getCenterColor(videoSource, 10);
-          onPlayerDetected(centerColor)
-          
+          centerColor = getEnhancedCenterColor(videoSource, 10);
+
           //TODO REMOVE THIS
-          const { r, g, b } = centerColor;
-          const text = `RGB: (${r}, ${g}, ${b})`;
+          // const { r, g, b } = centerColor;
+          // const text = `RGB: (${r}, ${g}, ${b})`;
 
-          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-          ctx.fillStyle = brightness > 125 ? "black" : "white";
+          // const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+          // ctx.fillStyle = brightness > 125 ? "black" : "white";
 
-          ctx.font = "16px Arial";
-          ctx.textBaseline = "bottom";
-          ctx.fillText(text, canvasCenterX + 10, canvasCenterY - 10);
+          // ctx.font = "16px Arial";
+          // ctx.textBaseline = "bottom";
+          // ctx.fillText(text, canvasCenterX + 10, canvasCenterY - 10);
       } catch (error) {
           console.warn("Color detection error:", error);
       }
+
+      if (!centerColor) {
+        return;
+      }
+      onPlayerDetected(centerColor);
+
+      const { r, g, b } = centerColor;
+      const text = `RGB: (${r}, ${g}, ${b})`;
+
+      // Draw color info with better visibility
+      ctx.save();
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(canvasCenterX + 15, canvasCenterY - 30, 150, 25);
+      
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      ctx.fillStyle = brightness > 125 ? "white" : "yellow";
+      ctx.font = "14px Arial";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, canvasCenterX + 20, canvasCenterY - 17);
+      ctx.restore();
+
+      // Draw crosshair
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(canvasCenterX - 20, canvasCenterY);
+      ctx.lineTo(canvasCenterX + 20, canvasCenterY);
+      ctx.moveTo(canvasCenterX, canvasCenterY - 20);
+      ctx.lineTo(canvasCenterX, canvasCenterY + 20);
+      ctx.stroke();
+
   }
 };
 
@@ -196,46 +227,183 @@ export const detectVideo = (
   };
 };
 
-// Keep the working getCenterColor function
-function getCenterColor(videoSource, size = 10) {
-  let shrinkFactor = 1;
-
+function getCenterColor(videoSource, size = 20) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
 
-  canvas.width = Math.floor(videoSource.videoWidth / shrinkFactor);
-  canvas.height = Math.floor(videoSource.videoHeight / shrinkFactor);
+  // Use full resolution for better accuracy
+  canvas.width = videoSource.videoWidth;
+  canvas.height = videoSource.videoHeight;
 
   ctx.drawImage(videoSource, 0, 0);
-  // Shrink the bounding box to the center region
 
   const centerX = Math.floor(canvas.width / 2);
   const centerY = Math.floor(canvas.height / 2);
-  const regionSize = size;
+  
+  // Use larger sampling area for more stable color detection
+  const regionSize = Math.max(size, 30);
 
-  const imageData = ctx.getImageData(
-    centerX - regionSize / 2,
-    centerY - regionSize / 2,
-    regionSize,
-    regionSize
-  );
-  const data = imageData.data;
+  try {
+    const imageData = ctx.getImageData(
+      centerX - regionSize / 2,
+      centerY - regionSize / 2,
+      regionSize,
+      regionSize
+    );
+    const data = imageData.data;
 
-  let r = 0, g = 0, b = 0;
-  const totalPixels = regionSize * regionSize;
+    // Sample with outlier rejection for more stable color
+    const samples = [];
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 3] > 0) { // Check alpha channel
+        samples.push({
+          r: data[i],
+          g: data[i + 1],
+          b: data[i + 2]
+        });
+      }
+    }
 
-  for (let i = 0; i < data.length; i += 4) {
-    r += data[i];
-    g += data[i + 1];
-    b += data[i + 2];
+    if (samples.length === 0) {
+      return { r: 0, g: 0, b: 0 };
+    }
+
+    // Use median values to reduce noise
+    samples.sort((a, b) => a.r - b.r);
+    const medianR = samples[Math.floor(samples.length / 2)].r;
+    
+    samples.sort((a, b) => a.g - b.g);
+    const medianG = samples[Math.floor(samples.length / 2)].g;
+    
+    samples.sort((a, b) => a.b - b.b);
+    const medianB = samples[Math.floor(samples.length / 2)].b;
+
+    return { 
+      r: Math.round(medianR), 
+      g: Math.round(medianG), 
+      b: Math.round(medianB) 
+    };
+    
+  } catch (error) {
+    console.error("Error getting image data:", error);
+    return { r: 0, g: 0, b: 0 };
   }
-
-  r = Math.round(r / totalPixels);
-  g = Math.round(g / totalPixels);
-  b = Math.round(b / totalPixels);
-
-  return { r, g, b };
 }
+
+function getEnhancedCenterColor(videoSource, size = 30) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  // Use full resolution
+  canvas.width = videoSource.videoWidth;
+  canvas.height = videoSource.videoHeight;
+
+  ctx.drawImage(videoSource, 0, 0);
+
+  const centerX = Math.floor(canvas.width / 2);
+  const centerY = Math.floor(canvas.height / 2);
+  
+  // Sample multiple points around center for more robust detection
+  const samplePoints = [
+    { x: centerX, y: centerY }, // Center
+    { x: centerX - 10, y: centerY }, // Left
+    { x: centerX + 10, y: centerY }, // Right
+    { x: centerX, y: centerY - 10 }, // Top
+    { x: centerX, y: centerY + 10 }, // Bottom
+  ];
+
+  let totalR = 0, totalG = 0, totalB = 0;
+  let validSamples = 0;
+
+  try {
+    for (const point of samplePoints) {
+      if (point.x >= 0 && point.x < canvas.width && 
+          point.y >= 0 && point.y < canvas.height) {
+        
+        const imageData = ctx.getImageData(
+          Math.max(0, point.x - size/2),
+          Math.max(0, point.y - size/2),
+          Math.min(size, canvas.width - point.x + size/2),
+          Math.min(size, canvas.height - point.y + size/2)
+        );
+        
+        const data = imageData.data;
+        let r = 0, g = 0, b = 0, pixels = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] > 0) { // Valid pixel
+            r += data[i];
+            g += data[i + 1];
+            b += data[i + 2];
+            pixels++;
+          }
+        }
+
+        if (pixels > 0) {
+          totalR += r / pixels;
+          totalG += g / pixels;
+          totalB += b / pixels;
+          validSamples++;
+        }
+      }
+    }
+
+    if (validSamples === 0) {
+      return { r: 0, g: 0, b: 0 };
+    }
+
+    return {
+      r: Math.round(totalR / validSamples),
+      g: Math.round(totalG / validSamples),
+      b: Math.round(totalB / validSamples),
+    };
+
+  } catch (error) {
+    console.error("Enhanced color detection error:", error);
+    return { r: 0, g: 0, b: 0 };
+  }
+}
+
+// // Keep the working getCenterColor function
+// function getCenterColor(videoSource, size = 10) {
+//   let shrinkFactor = 1;
+
+//   const canvas = document.createElement("canvas");
+//   const ctx = canvas.getContext("2d");
+
+//   canvas.width = Math.floor(videoSource.videoWidth / shrinkFactor);
+//   canvas.height = Math.floor(videoSource.videoHeight / shrinkFactor);
+
+//   ctx.drawImage(videoSource, 0, 0);
+//   // Shrink the bounding box to the center region
+
+//   const centerX = Math.floor(canvas.width / 2);
+//   const centerY = Math.floor(canvas.height / 2);
+//   const regionSize = size;
+
+//   const imageData = ctx.getImageData(
+//     centerX - regionSize / 2,
+//     centerY - regionSize / 2,
+//     regionSize,
+//     regionSize
+//   );
+//   const data = imageData.data;
+
+//   let r = 0, g = 0, b = 0;
+//   const totalPixels = regionSize * regionSize;
+
+//   for (let i = 0; i < data.length; i += 4) {
+//     r += data[i];
+//     g += data[i + 1];
+//     b += data[i + 2];
+//   }
+
+//   r = Math.round(r / totalPixels);
+//   g = Math.round(g / totalPixels);
+//   b = Math.round(b / totalPixels);
+
+//   return { r, g, b };
+// }
 
 class Colors {
   constructor() {
