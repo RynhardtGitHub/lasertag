@@ -85,7 +85,7 @@ export function createNewServer(httpServer:HTTPServer){
         SocketData
     >(httpServer, {
       cors:{
-        origin:["http://localhost:5500","http://localhost:3000",
+        origin:["http://localhost:5500","http://localhost:3002",
         "https://lasertag.vercel.app/"],
         methods: ["GET", "POST"]
       }
