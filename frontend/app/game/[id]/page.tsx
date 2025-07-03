@@ -18,7 +18,8 @@
     const params = useParams()
     const router = useRouter()
     const gameId = params.id as string
-    const webSocket = getWebSocket();  
+    const webSocket = getWebSocket(); 
+    const websocket = getWebSocket();
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [cameraActive, setCameraActive] = useState(false)
